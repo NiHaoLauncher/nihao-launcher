@@ -1,0 +1,8 @@
+node_modules
+target
+plugin-sources/
+src-shared/
+**/node_modules/*
+**/target/*
+**/dist_ui/*
+**/ui/src/*

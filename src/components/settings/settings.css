@@ -1,0 +1,180 @@
+.settings-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: var(--text-color);
+}
+
+.settings-tab h3 {
+  margin: 0 0 0.5rem 0;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.settings-field label {
+  font-size: 0.85rem;
+}
+
+.settings-field select,
+.settings-field input {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--hr-color);
+  background-color: var(--second-background-color);
+  color: var(--text-color);
+}
+
+.settings-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.settings-checkbox-label input {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-game-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.settings-game-tabs button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background-color: var(--second-background-color);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.settings-game-tabs button.active {
+  border-color: var(--main-color);
+  background-color: var(--main-color);
+}
+
+.settings-empty {
+  font-size: 0.85rem;
+  color: var(--text-secondary-color);
+  font-style: italic;
+}
+
+.settings-save-btn {
+  padding: 0.5rem 1.25rem;
+  border-radius: 6px;
+  border: none;
+  background-color: var(--main-color);
+  color: white;
+  cursor: pointer;
+}
+
+.settings-save-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-online-status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background-color: var(--second-background-color);
+}
+
+.settings-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: var(--text-secondary-color);
+}
+
+.settings-status-authenticated {
+  background-color: #3fb950;
+}
+
+.settings-status-anonymous {
+  background-color: #e3b341;
+}
+
+.settings-status-unavailable {
+  background-color: #ff6b6b;
+}
+
+.settings-status-connecting {
+  background-color: var(--text-secondary-color);
+}
+
+.settings-online-status-text {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.settings-online-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-secondary-btn {
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--hr-color);
+  background-color: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.settings-secondary-btn:hover {
+  border-color: var(--main-color);
+}
+
+.settings-online-login {
+  padding-top: 0.25rem;
+}
+
+.settings-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--hr-color);
+  background-color: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.settings-icon-btn:hover {
+  border-color: var(--main-color);
+}
+
+.settings-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-manage-profile-btn {
+  align-self: flex-start;
+}
+
+.settings-form-error {
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.settings-form-success {
+  color: #3fb950;
+  font-size: 0.85rem;
+  margin: 0;
+}

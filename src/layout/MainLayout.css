@@ -1,0 +1,94 @@
+.mainLayout>.progress {
+    background-color: var(--main-background-color);
+    border-radius: var(--border-radius);
+    width: 100%;
+    overflow: hidden;
+    display: none;
+}
+
+.mainLayout>.progress.visible {
+    margin-top: 7px;
+    height: 52px;
+    display: block;
+}
+
+.mainLayout>.progress>.progress-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+}
+
+.mainLayout>.progress>.progress-content>.progress-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 12px 4px 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.mainLayout>.progress>.progress-content>.progress-header>.progress-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+    max-width: 40%;
+}
+
+.mainLayout>.progress>.progress-content>.progress-header>.progress-game {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    border-radius: 5px;
+    object-fit: cover;
+}
+
+.mainLayout>.progress>.progress-content>.progress-header>.progress-game-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary-color);
+    font-size: 0.55rem;
+    font-weight: 700;
+}
+
+.mainLayout>.progress>.progress-content>.progress-header>.progress-stage {
+    font-size: 0.75rem;
+    color: var(--text-secondary-color);
+    margin-left: auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.mainLayout>.progress>.progress-content>.line,
+.mainLayout>.progress>.progress-content>.details-line {
+    background-color: var(--main-color);
+    height: 5px;
+    transition: width 0.3s ease;
+}
+
+.mainLayout>.progress>.progress-content>.details-line {
+    background-color: var(--main-second-color);
+}
+
+.mainLayout .mainbar>.quick-panel {
+    display: flex;
+    background-color: var(--mainbar-background-color);
+    margin: 0 auto;
+    border-radius: var(--border-radius);
+    padding: 5px 20px 0 20px;
+    gap: 15px;
+}
+
+.mainLayout .mainbar>.quick-panel>.hyperlink {
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+}

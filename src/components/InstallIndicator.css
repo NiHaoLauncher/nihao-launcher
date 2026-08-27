@@ -1,0 +1,109 @@
+.mini-installs {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 10;
+}
+
+.mini-install {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.mini-install .spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: relative;
+  transition: background 0.3s ease;
+}
+
+.mini-install .spinner::before {
+  content: "";
+  position: absolute;
+  inset: 2.5px;
+  border-radius: 50%;
+  background: var(--main-background-color);
+}
+
+.mini-install-panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background-color: var(--modal-background-color);
+  border: 1px solid var(--hr-color);
+  border-radius: var(--border-radius);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  padding: 10px;
+  z-index: 2000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  pointer-events: none;
+}
+
+.mini-install:hover .mini-install-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.install-panel-item {
+  padding: 0;
+}
+
+.install-panel-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-color);
+  gap: 8px;
+}
+
+.install-panel-module {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-secondary-color);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.install-panel-stage {
+  font-size: 0.78rem;
+  color: var(--text-secondary-color);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.install-panel-filecount {
+  font-size: 0.72rem;
+  color: var(--text-secondary-color);
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.install-panel-bar {
+  margin-top: 6px;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.install-panel-bar-fill {
+  height: 100%;
+  background: var(--main-color);
+  transition: width 0.3s ease;
+}

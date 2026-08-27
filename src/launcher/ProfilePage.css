@@ -1,0 +1,117 @@
+.profile-page {
+  display: flex;
+  height: 100%;
+  color: var(--text-color);
+}
+
+/* ── Left: general info ─────────────────────────────────── */
+
+.profile-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border-right: 1px solid var(--hr-color);
+  box-sizing: border-box;
+}
+
+.profile-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-name {
+  margin: 1rem 0 0 0;
+}
+
+.profile-login {
+  margin: 0.2rem 0 0 0;
+  color: var(--text-secondary-color);
+}
+
+.profile-field {
+  width: 100%;
+  margin-top: 1.5rem;
+  text-align: left;
+}
+
+.profile-field label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-secondary-color);
+  margin-bottom: 0.2rem;
+}
+
+.profile-field p {
+  margin: 0;
+  word-break: break-word;
+}
+
+.profile-logout-btn {
+  margin-top: auto;
+  width: 100%;
+  padding: 0.5rem 1.25rem;
+  border-radius: 6px;
+  border: none;
+  background-color: var(--main-color);
+  color: white;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+/* ── Right: per-game info ───────────────────────────────── */
+
+.profile-games {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.profile-games-tabs {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 1.5rem 1.5rem 0 1.5rem;
+  border-bottom: 1px solid var(--hr-color);
+  padding-bottom: 1rem;
+}
+
+.profile-games-tab {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background-color: var(--second-background-color);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.profile-games-tab.active {
+  border-color: var(--main-color);
+  background-color: var(--main-color);
+  color: white;
+}
+
+.profile-games-content {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.profile-games-empty {
+  font-size: 0.9rem;
+  color: var(--text-secondary-color);
+  font-style: italic;
+}
+
+.profile-games-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

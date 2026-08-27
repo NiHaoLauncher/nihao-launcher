@@ -1,0 +1,15 @@
+.gameBanner {
+    transform: scale(1);
+    transition: filter 0.3s ease, opacity 0.3s ease, transform 0.5s ease, left 0.5s ease;
+}
+.gameBanner.noActive {
+    filter: grayscale(100%);
+    transform: scale(0.95);
+    opacity: 0.5;
+    pointer-events: auto;
+}
+.gameBanner.noActive:hover {
+    opacity: 1;
+    opacity: 1;
+    filter: grayscale(50%);
+}

@@ -1,0 +1,318 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-container {
+  background-color: var(--modal-background-color);
+  border-radius: 12px;
+  border: 1px solid var(--hr-color);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  animation: slideIn 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-container.modal-size-small {
+  max-width: 400px;
+}
+
+.modal-container.modal-size-medium {
+  max-width: 600px;
+}
+
+.modal-container.modal-size-large {
+  max-width: 900px;
+}
+
+.modal-container.modal-size-full {
+  max-width: 95vw;
+  max-height: 95vh;
+}
+
+.modal-categories-layout {
+  max-width: 900px;
+}
+
+/* Custom scrollbars (Webkit) */
+.modal-content::-webkit-scrollbar,
+.modal-categories::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-content::-webkit-scrollbar-thumb,
+.modal-categories::-webkit-scrollbar-thumb {
+  background-color: var(--main-color);
+  border-radius: 3px;
+}
+
+.modal-content::-webkit-scrollbar-track,
+.modal-categories::-webkit-scrollbar-track {
+  background-color: var(--bg-color);
+}
+
+/* Focus states for accessibility */
+.category-btn:focus-visible,
+.modal-close:focus-visible {
+  outline: 2px solid var(--main-color);
+  outline-offset: 2px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px;
+  border-bottom: 1px solid var(--hr-color);
+  flex-shrink: 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: var(--text-color);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.modal-close:hover {
+  background-color: var(--button-hover);
+  color: var(--button-color-active);
+}
+
+.modal-body {
+  display: flex;
+  overflow: hidden;
+  min-height: 50px;
+  max-width: 100%;
+}
+
+.modal-content {
+  padding: 25px;
+  overflow-y: auto;
+  flex: 1;
+  min-width: 0;  /* Дозволяє flex елементу стискатись */
+  scroll-behavior: smooth;
+}
+
+.modal-content > * {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+.modal-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.modal-content pre,
+.modal-content code {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.modal-content table {
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+
+.modal-content button:not(.category-btn):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.modal-categories {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--hr-color);
+  background-color: var(--bg-color);
+  min-width: 200px;
+  max-width: 250px;
+  overflow-y: auto;
+}
+
+.category-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 20px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--hr-color);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.2s, color 0.2s;
+  color: var(--text-color);
+  font-size: 0.95rem;
+}
+
+.category-btn:last-child {
+  border-bottom: none;
+}
+
+.category-btn:hover {
+  background-color: var(--button-hover);
+  color: var(--button-color-active);
+}
+
+.category-btn.active {
+  background-color: var(--main-color);
+  color: var(--button-color-active);
+}
+
+.category-icon {
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.category-label {
+  flex: 1;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.confirm-message {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-color);
+  line-height: 1.6;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 25px;
+  /*border-top: 1px solid var(--hr-color);*/
+  background-color: var(--bg-color);
+  flex-shrink: 0;
+}
+.confirm-actions > button {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  border-radius: var(--border-radius, 8px);
+  border: 1px solid #ccc;
+  background-color: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 25px;
+  border-top: 1px solid var(--hr-color);
+  background-color: var(--modal-background-color);
+  flex-shrink: 0;
+}
+
+.confirm-actions > .btn-primary {
+  border-color: var(--main-color);
+  background-color: var(--main-color);
+  color: var(--text-color);
+}
+
+.confirm-actions > .btn-primary:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.confirm-actions > .btn-danger {
+  border-color: #dc3545;
+  background-color: #dc3545;
+  color: white;
+}
+
+.confirm-actions > .btn-danger:hover {
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+@media (max-width: 768px) {
+  .modal-categories-layout {
+    max-width: 100%;
+  }
+
+  .modal-body {
+    flex-direction: column;
+  }
+
+  .modal-categories {
+    flex-direction: row;
+    border-left: none;
+    border-top: 1px solid var(--hr-color);
+    min-width: 100%;
+    max-height: 80px;
+    overflow-x: auto;
+  }
+
+  .category-btn {
+    border-bottom: none;
+    border-right: 1px solid var(--hr-color);
+    padding: 10px 15px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .category-btn:last-child {
+    border-right: none;
+  }
+}

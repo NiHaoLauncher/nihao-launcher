@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "src-tauri",
+    "plugin-sources/common",
+    "plugin-sources/games/minecraft",
+]
+resolver = "3"
+
+[workspace.dependencies]
+libloading = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

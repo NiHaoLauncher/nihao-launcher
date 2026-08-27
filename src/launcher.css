@@ -1,0 +1,122 @@
+.home-games-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 24px;
+}
+
+.home-game-tile {
+    position: relative;
+    width: 160px;
+    border-radius: 10px;
+    overflow: visible;
+    cursor: pointer;
+}
+
+/* Idle state matches the old launcher's game list tiles exactly (grayscale/half-opacity at
+   rest, full color on hover) — see nihao-client-old/src/pages/game_list.html's .modpack. */
+.home-game-tile-img,
+.home-game-tile-placeholder {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    display: block;
+    border-radius: 10px;
+    opacity: 0.5;
+    filter: grayscale(60%);
+    transition: filter 0.2s ease, opacity 0.2s ease, transform 0.15s ease;
+}
+
+.home-game-tile-img {
+    object-fit: cover;
+}
+
+.home-game-tile-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 28px;
+    color: var(--text-color);
+    background-color: var(--main-background-color);
+}
+
+.home-game-tile:not(.dimmed):hover .home-game-tile-img,
+.home-game-tile:not(.dimmed):hover .home-game-tile-placeholder {
+    opacity: 1;
+    filter: grayscale(0%);
+    transform: scale(1.03);
+}
+
+/* Dims every OTHER tile while one of its siblings is being hovered, so the flyout (below)
+   reads as the clear focus — same idea as Steam's library list hover. Already grayscale/
+   half-opacity at rest, so this just needs to make sure it stays that way (in case the
+   pointer briefly grazed it on the way to another tile). */
+.home-game-tile.dimmed .home-game-tile-img,
+.home-game-tile.dimmed .home-game-tile-placeholder {
+    opacity: 0.5;
+    filter: grayscale(60%);
+}
+
+/* The actual hover-menu: pops out to the side as its own card, sharp image + info below —
+   not squeezed into the tile's own small box. */
+.home-game-tile-flyout {
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 0;
+    width: 220px;
+    background-color: var(--second-background-color);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    z-index: 20;
+    opacity: 0;
+    transform: translateX(-6px);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.home-game-tile-flyout.visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.home-game-tile-flyout-img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    display: block;
+}
+
+.home-game-tile-flyout-info {
+    padding: 12px 14px 14px 14px;
+}
+
+.home-game-tile-flyout-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-color);
+}
+
+.home-game-tile-flyout-stat {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--hr-color);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.home-game-tile-flyout-stat-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary-color);
+}
+
+.home-game-tile-flyout-stat-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-color);
+}

@@ -1,0 +1,104 @@
+/* ── Slider styling ────────────────────────────────────────── */
+
+.slider-field {
+    width: 100%;
+}
+
+.slider-field-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+.slider-field-disabled .slider-track {
+    cursor: not-allowed;
+}
+.slider-field-disabled .slider-thumb {
+    cursor: not-allowed;
+}
+
+.slider-track-wrapper {
+    position: relative;
+    width: 100%;
+    margin-top: 28px;
+}
+
+.slider-track {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    background: #5a5a5a;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Green fill */
+.slider-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 4px 0 0 4px;
+    background: #4caf50;
+    pointer-events: none;
+    transition: width 0.05s linear;
+}
+
+/* Tick marks — taller than the track */
+.slider-tick {
+    position: absolute;
+    top: -6px;
+    width: 2px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 1px;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+/* Thumb (circle on the track) */
+.slider-thumb {
+    position: absolute;
+    top: 50%;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #4caf50;
+    border: 3px solid #2a2a2a;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    cursor: grab;
+}
+
+.slider-thumb:active {
+    cursor: grabbing;
+}
+
+/* Value badge — floats above the thumb; `left` is set inline (clamped, see SliderField.tsx)
+   so it always stays within the track's own bounds instead of overflowing the container. */
+.slider-value-badge {
+    position: absolute;
+    top: -8px;
+    transform: translate(-50%, -100%);
+    padding: 0.35rem 0.65rem;
+    border-radius: 8px;
+    background: #2a2a2a;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: bold;
+    white-space: nowrap;
+    z-index: 3;
+    pointer-events: none;
+}
+
+/* Min / Max labels */
+.slider-limits {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+}
+
+.slider-limits span {
+    font-size: 0.7rem;
+    color: var(--text-secondary-color);
+    opacity: 0.5;
+}
