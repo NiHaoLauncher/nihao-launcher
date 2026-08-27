@@ -1,0 +1,1393 @@
+/* Local-modpack list, tiled — banner dimmed/grayscale at rest, full color on hover, same idea
+   as the old launcher's game_list.html .modpack. Fixed tile size, wraps to as many per row as
+   fit — resizing the window changes how many fit per row, not the tile size. */
+.modpack-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 20px;
+}
+
+/* Right-click menu for a modpack tile — position:fixed at the click point (TileContextMenu
+   sets left/top inline from the click's clientX/clientY). */
+.modpack-context-menu {
+    position: fixed;
+    z-index: 50;
+    min-width: 190px;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    gap: 2px;
+    background-color: var(--second-background-color);
+    border: 1px solid var(--hr-color);
+    border-radius: 8px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.modpack-context-menu button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: transparent;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: none;
+}
+
+.modpack-context-menu button:hover:not(:disabled) {
+    background-color: var(--main-background-color);
+}
+
+.modpack-context-menu button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.modpack-context-menu button.danger {
+    color: #ff6b6b;
+}
+
+.modpack-context-menu button.danger:hover:not(:disabled) {
+    background-color: rgba(220, 53, 69, 0.15);
+}
+
+.modpack-context-menu hr {
+    border: none;
+    border-top: 1px solid var(--hr-color);
+    opacity: 0.5;
+    margin: 4px 2px;
+}
+
+.modpack-tile {
+    position: relative;
+    flex-shrink: 0;
+    width: 220px;
+    height: 130px;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    background-color: var(--second-background-color);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    transition: transform 0.1s ease;
+}
+
+.modpack-tile:hover {
+    transform: scale(1.05);
+}
+
+.modpack-tile-background {
+    position: absolute;
+    inset: 0;
+}
+
+.modpack-tile-background img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 50%;
+    filter: grayscale(60%);
+    transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.modpack-tile:hover .modpack-tile-background img {
+    opacity: 100%;
+    filter: grayscale(0%);
+}
+
+.modpack-tile-info {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.35) 70%, transparent);
+}
+
+.modpack-tile-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    background-color: var(--main-background-color);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.modpack-tile-text {
+    min-width: 0;
+}
+
+.modpack-tile-text h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.modpack-tile-text p {
+    margin: 0;
+    font-size: 12px;
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.variant.instance {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 7px;
+    border-radius: 16px;
+    background-color: var(--second-background-color);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    gap: 12px;
+    box-sizing: border-box;
+    margin-bottom: 5px;
+}
+.variant.instance img {
+    height: 40px;
+    width: 40px;
+    border: 1px solid var(--hr-color);
+    border-radius: 6px;
+    padding: 5px;
+}
+.variant.instance p {
+    color: var(--text-secondary-color);
+    margin: 0;
+}
+.variant.instance h2 {
+    margin: 10px 0 10px 0;
+}
+
+.option-container {
+
+}
+.option-container > .option {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 12px;
+}
+.option-container label {
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+}
+.option-container input[type="text"],
+.option-container select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+select option:checked {
+    background-color: var(--main-color);
+    color: white;
+}
+.option-container input[type="range"] {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 2px 0;
+}
+.option-container > button,
+.option > button {
+    align-self: flex-start;
+}
+
+.modpack-option-hint {
+    margin: 2px 0 6px 0;
+    font-size: 0.78rem;
+    color: var(--text-secondary-color);
+    opacity: 0.85;
+}
+
+.modpack-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+.modpack-checkbox-label input {
+    width: 18px;
+    height: 18px;
+}
+
+.modpack-error {
+    color: #dc3545;
+    font-size: 0.85rem;
+}
+
+.modpack-danger-btn {
+    background-color: #dc3545;
+    color: white;
+}
+
+.modpack-share-formats {
+    display: flex;
+    gap: 14px;
+    margin-top: 8px;
+}
+
+/* Same idea as the Home page's game tiles (src/launcher.css's .home-game-tile /
+   .home-game-tile-flyout) — a small icon that pops a details card out to the side on hover,
+   instead of squeezing text into the icon's own small box. */
+.modpack-share-format {
+    position: relative;
+}
+
+.modpack-share-format-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 64px;
+    border-radius: 8px;
+    border: 1px solid var(--hr-color);
+    background-color: var(--second-background-color);
+    color: var(--main-color);
+    cursor: pointer;
+    transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.modpack-share-format-btn:hover:not(:disabled) {
+    border-color: var(--main-color);
+}
+
+.modpack-share-format-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.modpack-share-format.dimmed .modpack-share-format-btn {
+    opacity: 0.5;
+}
+
+.modpack-share-format-flyout {
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 0;
+    width: 220px;
+    background-color: var(--second-background-color);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    z-index: 20;
+    opacity: 0;
+    transform: translateX(-6px);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.modpack-share-format-flyout.visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.modpack-share-format-flyout strong {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-color);
+    margin-bottom: 4px;
+}
+
+.modpack-share-format-flyout span {
+    font-size: 0.75rem;
+    color: var(--text-secondary-color);
+    line-height: 1.4;
+}
+
+.modpack-share-files {
+    display: flex;
+    flex-direction: column;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--hr-color);
+    border-radius: 8px;
+}
+
+.modpack-file-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--hr-color);
+}
+
+.modpack-file-row:last-child {
+    border-bottom: none;
+}
+
+.modpack-file-row:hover {
+    background-color: var(--second-background-color);
+}
+
+.modpack-file-row input {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+}
+
+.modpack-file-icon {
+    flex-shrink: 0;
+    display: flex;
+    color: var(--text-secondary-color);
+}
+
+.modpack-file-name {
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modpack-content-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--hr-color);
+}
+
+.modpack-content-row:last-child {
+    border-bottom: none;
+}
+
+.modpack-content-row:hover {
+    background-color: var(--second-background-color);
+}
+
+.modpack-content-row .modpack-file-name {
+    flex: 1;
+}
+
+.modpack-content-size {
+    flex-shrink: 0;
+    font-size: 0.78rem;
+    color: var(--text-secondary-color);
+}
+
+.modpack-image-picker {
+    position: relative;
+    cursor: pointer;
+    overflow: hidden;
+    background-color: var(--second-background-color);
+    border: 1px solid var(--hr-color);
+}
+
+.modpack-image-picker img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.modpack-image-picker-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: white;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.modpack-image-picker:hover .modpack-image-picker-overlay {
+    opacity: 1;
+}
+
+.modpack-images-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.modpack-icon-preview {
+    width: 90px;
+    height: 90px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.modpack-banner-preview {
+    width: 220px;
+    height: 90px;
+    border-radius: 8px;
+}
+
+.client-log-panel {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: rgba(10, 10, 12, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.client-log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary-color);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+.client-log-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary-color);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.client-log-close:hover {
+    color: var(--text-color);
+}
+
+.client-log {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px 12px;
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: #d6d6d6;
+}
+
+.client-log-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.client-log-empty {
+    opacity: 0.5;
+    font-style: italic;
+}
+
+.content-manager-tabs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+/* Pill-shaped nav — same look as the "All Instance / Public / Custom" tabs above the modpack
+   grid (see `ModpacksList`'s inline-styled `<nav>`), reused here for the Content manager's
+   category tabs and Browse content's services row. */
+.pill-nav {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    background-color: var(--second-background-color);
+    border-radius: 50px;
+    padding: 4px;
+}
+
+.pill-nav button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 50px;
+    border: none;
+    background-color: transparent;
+    color: var(--text-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.pill-nav button.active {
+    background-color: var(--main-color);
+    color: white;
+}
+
+.pill-nav button:disabled {
+    color: var(--text-disabled-color);
+    cursor: not-allowed;
+}
+
+.pill-nav-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    object-fit: contain;
+}
+
+.content-manager-browse-btn {
+    margin-left: auto;
+    padding: 6px 14px;
+    border-radius: 50px;
+    border: 1px solid var(--main-color);
+    background-color: transparent;
+    color: var(--main-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.content-manager-browse-btn:hover {
+    background-color: var(--main-color);
+    color: white;
+}
+
+.modpack-browse-services {
+    margin-bottom: 12px;
+}
+
+.modpack-browse-services button {
+    padding: 6px 16px 6px 8px;
+    font-size: 0.9rem;
+}
+
+.modpack-browse-services .pill-nav-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+}
+
+.content-manager-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 8px;
+    color: #d6d6d6;
+}
+
+.content-manager-scan {
+    padding: 6px 2px;
+}
+
+.content-manager-scan-bar {
+    height: 4px;
+    margin-top: 8px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.content-manager-scan-bar-fill {
+    height: 100%;
+    background-color: var(--main-color);
+    transition: width 0.2s ease;
+}
+
+.content-manager-list .modpack-content-row {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.content-manager-list .modpack-content-row:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.content-manager-list .modpack-option-hint {
+    padding: 10px 4px;
+}
+
+.modpack-content-row {
+    padding: 8px 10px;
+}
+
+.modpack-content-row.disabled {
+    opacity: 0.5;
+}
+
+.modpack-content-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    object-fit: cover;
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.modpack-content-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modpack-content-meta {
+    flex-shrink: 0;
+    width: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    text-align: right;
+}
+
+.modpack-content-version {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.modpack-content-filename {
+    max-width: 100%;
+    font-size: 0.7rem;
+    color: var(--text-secondary-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modpack-content-actions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 4px;
+}
+
+.modpack-content-toggle {
+    flex-shrink: 0;
+    width: 34px;
+    height: 19px;
+    border-radius: 10px;
+    border: none;
+    padding: 2px;
+    background-color: rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.15s ease;
+}
+
+.modpack-content-toggle.on {
+    background-color: #22c55e;
+    justify-content: flex-end;
+}
+
+.modpack-content-toggle-knob {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background-color: white;
+}
+
+.modpack-content-delete {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-secondary-color);
+    cursor: pointer;
+    padding: 2px;
+}
+
+.modpack-content-delete:hover {
+    color: #ff6b6b;
+}
+
+.actions-banner {
+    position: absolute;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 7px;
+    border-radius: 999px;
+    background: var(--actions-banner-background);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--hr-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    opacity: 1;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.actions-banner-hidden {
+    opacity: 0;
+    transform: translate(20px, -50%);
+    pointer-events: none;
+}
+
+.actions-banner-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    text-decoration: none;
+    padding: 0;
+}
+
+.actions-banner-item:hover {
+    background-color: color-mix(in srgb, var(--main-color) 30%, transparent);
+    transform: scale(1.08);
+}
+
+/* "Browse content" modal — search Modrinth and install straight into the instance. */
+.modpack-browse-search {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.modpack-browse-search input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    border: 1px solid var(--hr-color);
+    background-color: var(--second-background-color);
+    color: var(--text-color);
+}
+
+.modpack-browse-search button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--hr-color);
+    background-color: var(--second-background-color);
+    color: var(--text-color);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.modpack-browse-search button.active {
+    border-color: var(--main-color);
+    background-color: var(--main-color);
+    color: white;
+}
+
+.modpack-browse-filters-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 50px;
+    background-color: white;
+    color: var(--main-color);
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+/* "Filters" is a column that appears attached to this same modal's right side — not a second
+   modal, not a panel docked to the screen edge — so it shares the modal's own scroll container,
+   close button, and backdrop instead of layering another one on top. */
+.modpack-browse-layout {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+    /* Both columns get their own scrollbar (see below) instead of scrolling together as one —
+       needs an actual height cap here since a flex row otherwise just grows to fit its tallest
+       child, leaving nothing for `overflow-y` on either side to act on. */
+    max-height: 62vh;
+}
+
+.modpack-browse-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.modpack-browse-filters-sidebar {
+    flex-shrink: 0;
+    width: 220px;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 12px 12px 16px;
+    border-radius: 10px;
+    background-color: color-mix(in srgb, var(--second-background-color) 85%, var(--main-color) 15%);
+}
+
+.modpack-browse-main::-webkit-scrollbar,
+.modpack-browse-filters-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modpack-browse-main::-webkit-scrollbar-thumb,
+.modpack-browse-filters-sidebar::-webkit-scrollbar-thumb {
+    background-color: var(--main-color);
+    border-radius: 3px;
+}
+
+.modpack-browse-main::-webkit-scrollbar-track,
+.modpack-browse-filters-sidebar::-webkit-scrollbar-track {
+    background-color: transparent;
+}
+
+.modpack-browse-filters-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.modpack-browse-filter-section {
+    margin-bottom: 14px;
+}
+
+.modpack-browse-filter-section-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0;
+    margin-bottom: 6px;
+    border: none;
+    background: none;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.modpack-browse-filter-chevron {
+    display: inline-block;
+    font-size: 0.7rem;
+    color: var(--text-secondary-color);
+    transform: rotate(-90deg);
+    transition: transform 0.15s;
+}
+
+.modpack-browse-filter-chevron.open {
+    transform: rotate(0deg);
+}
+
+.modpack-browse-filter-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.modpack-browse-filter-chip {
+    padding: 4px 10px;
+    border-radius: 50px;
+    border: 1px solid var(--hr-color);
+    background-color: var(--second-background-color);
+    color: var(--text-secondary-color);
+    font-size: 0.75rem;
+    text-transform: capitalize;
+    cursor: pointer;
+}
+
+.modpack-browse-filter-chip.active {
+    border-color: var(--main-color);
+    background-color: var(--main-color);
+    color: white;
+}
+
+.modpack-browse-filters-clear {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid var(--hr-color);
+    background-color: transparent;
+    color: var(--text-secondary-color);
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.modpack-browse-results {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    /* No height cap/scroll of its own — Modal's own .modal-content is already the scroll
+       container (capped to 90vh); a second nested scroll region here just meant scrolling the
+       outer modal first to even reach this list's own scrollbar. */
+}
+
+.modpack-browse-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--hr-color);
+    background-color: var(--second-background-color);
+}
+
+.modpack-browse-row-clickable {
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+.modpack-browse-row-clickable:hover {
+    border-color: var(--main-color);
+    background-color: color-mix(in srgb, var(--second-background-color) 80%, var(--main-color) 20%);
+}
+
+.modpack-browse-icon {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    object-fit: cover;
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.modpack-browse-icon.modpack-file-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modpack-browse-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.modpack-browse-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.modpack-browse-description {
+    font-size: 0.78rem;
+    line-height: 1.25;
+    color: var(--text-secondary-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.modpack-browse-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.modpack-browse-tag {
+    padding: 2px 8px;
+    border-radius: 50px;
+    background-color: rgba(255, 255, 255, 0.14);
+    color: var(--text-color);
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+
+.modpack-browse-tag-more {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary-color);
+}
+
+.modpack-browse-actions {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.modpack-browse-install {
+    padding: 0.4rem 0.9rem;
+    border-radius: 6px;
+    border: none;
+    background-color: var(--main-color);
+    color: white;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.modpack-browse-install:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.modpack-browse-install.installed {
+    background-color: transparent;
+    border: 1px solid var(--hr-color);
+    color: var(--text-secondary-color);
+    opacity: 1;
+}
+
+.modpack-browse-downloads {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.72rem;
+    color: var(--text-secondary-color);
+}
+
+.modpack-project-open-browser {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0.35rem 0.7rem;
+    border-radius: 6px;
+    border: 1px solid var(--hr-color);
+    background-color: transparent;
+    color: var(--text-secondary-color);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.modpack-project-open-browser:hover {
+    border-color: var(--main-color);
+    color: var(--text-color);
+}
+
+.modpack-browse-pagination {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 2px;
+}
+
+.modpack-browse-pagination button {
+    flex-shrink: 0;
+    padding: 0.35rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid var(--hr-color);
+    background-color: var(--second-background-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.modpack-browse-pagination button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.modpack-browse-page-numbers {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.modpack-browse-page-number {
+    min-width: 28px;
+    padding: 0.35rem 0.5rem;
+    text-align: center;
+}
+
+.modpack-browse-page-number.active {
+    border-color: var(--main-color);
+    background-color: var(--main-color);
+    color: white;
+}
+
+.modpack-browse-page-ellipsis {
+    color: var(--text-secondary-color);
+    font-size: 0.8rem;
+    padding: 0 2px;
+}
+
+.modpack-browse-page-size-wrap {
+    position: relative;
+    flex-shrink: 0;
+    margin-left: auto;
+    width: 92px;
+}
+
+.modpack-browse-page-size {
+    width: 100%;
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--hr-color);
+    background-color: var(--second-background-color);
+    color: transparent;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+
+/* The select's own text is transparent (see `.modpack-browse-page-size-display`, which shows
+   "View: N" over the closed box instead) — but `<option>` inherits that `color: transparent`
+   too, so the dropdown's own popup needs it reset back explicitly or every option but the
+   currently-highlighted one (which the OS paints with its own selection foreground regardless
+   of this rule) renders invisible. */
+.modpack-browse-page-size option {
+    color: var(--text-color);
+    background-color: var(--second-background-color);
+}
+
+.modpack-browse-page-size-display {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding-left: 0.6rem;
+    font-size: 0.78rem;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* "Open a mod" detail page — a search result row's click opens (see `ProjectDetailModal`). */
+.modpack-project-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.modpack-project-header-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.modpack-project-header-text .modpack-browse-description {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+}
+
+.modpack-project-gallery {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+}
+
+.modpack-project-gallery-image {
+    flex-shrink: 0;
+    height: 140px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.modpack-project-body {
+    color: var(--text-color);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.modpack-project-body p {
+    margin: 0 0 10px 0;
+}
+
+.modpack-project-heading {
+    margin: 18px 0 8px 0;
+    color: var(--text-color);
+}
+
+.modpack-project-list {
+    margin: 0 0 10px 0;
+    padding-left: 20px;
+}
+
+.modpack-project-list li {
+    margin-bottom: 4px;
+}
+
+.modpack-project-code {
+    padding: 10px 12px;
+    margin: 0 0 10px 0;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.06);
+    overflow-x: auto;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+}
+
+.modpack-project-image {
+    max-width: 100%;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.modpack-project-inline-image {
+    max-width: 100%;
+    max-height: 1.4em;
+    vertical-align: middle;
+}
+
+.modpack-project-link-text {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+}
+
+/* Launch button — same translucent dark glass as the Content manager/console panel
+   (`.client-log-panel`), not the default template button colors, so the launch screen's main
+   action reads as part of the same visual language as the rest of the panel chrome. */
+.modpack-launch-btn {
+    background-color: rgba(10, 10, 12, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-color);
+}
+
+.modpack-launch-btn:hover:not(:disabled) {
+    border-color: var(--main-color);
+}
+
+.modpack-session-selector {
+    position: relative;
+    flex: 1;
+    max-width: 260px;
+}
+
+.modpack-session-btn {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+}
+
+.modpack-session-btn > svg:last-child {
+    flex-shrink: 0;
+    color: var(--text-secondary-color);
+}
+
+.modpack-session-avatar {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--main-color), rgba(255, 255, 255, 0.15));
+    color: white;
+    overflow: hidden;
+}
+
+.modpack-session-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: pixelated;
+}
+
+.modpack-session-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+}
+
+.modpack-session-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.modpack-session-type {
+    font-size: 0.72rem;
+    color: var(--text-secondary-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.modpack-session-menu {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 10px;
+    background-color: rgba(10, 10, 12, 0.96);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 10;
+}
+
+.modpack-session-menu button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background-color: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.modpack-session-menu button:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.modpack-session-menu button.active {
+    background-color: color-mix(in srgb, var(--second-background-color) 60%, var(--main-color) 40%);
+}
+
+.modpack-session-menu button.active .modpack-session-name {
+    color: var(--main-color);
+}
