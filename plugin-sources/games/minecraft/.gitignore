@@ -1,0 +1,5 @@
+/target/
+/dist_ui/
+ui/node_modules/
+ui/dist_ui/
+*.log
