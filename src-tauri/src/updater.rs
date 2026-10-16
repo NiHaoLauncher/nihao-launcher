@@ -1,5 +1,6 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -9,45 +10,33 @@ use tokio::io::AsyncWriteExt;
 
 use crate::get_program_path;
 
-/// Google Drive file id of the update manifest. Content at this id is expected
-/// to change with every release (kept in sync with nihao-updater's MAIN_MANIFEST).
-pub const MAIN_MANIFEST: &str = "1zLqQkGQ6zgjH_ww75G6-k-lQUyliiDQB";
-const UPDATE_RECORD_FILE: &str = "nihao.updt";
+/// Updates are the newest release of this project; its first `.zip` asset is the payload. The same
+/// release is published on GitHub and on GitLab: whichever answers, or has the newer version, is
+/// used, so one of them being down (or lagging behind) never blocks updating.
+const GITHUB_RELEASES_API: &str = "https://api.github.com/repos/BogdanCater/nihao-launcher/releases/latest";
+/// Project path `BogdanCater/nihao-launcher`, URL-encoded as the GitLab API wants it.
+const GITLAB_RELEASES_API: &str =
+    "https://gitlab.com/api/v4/projects/BogdanCater%2Fnihao-launcher/releases/permalink/latest";
+/// A lookup or a download that makes no progress for this long counts as a failure, so the other
+/// source gets its turn instead of the launcher waiting forever.
+const STALL_TIMEOUT: Duration = Duration::from_secs(20);
 const PENDING_CHANGELOG_FILE: &str = "nihao.changelog.json";
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct LauncherUpdateManifest {
     pub lates_update: UpdateInfo,
-    #[serde(default)]
-    pub lates_updater: Option<UpdaterInfo>,
-    #[serde(default)]
-    pub others: Value,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct UpdateInfo {
-    pub server: String,
-    #[serde(default)]
-    pub args: Vec<String>,
     pub version: String,
-    #[serde(default)]
-    pub min_updater_version: String,
     pub url: String,
     pub source: String,
     #[serde(default)]
     pub description: String,
-    #[serde(default)]
-    pub path_notes: Vec<String>,
     /// Optional promo image for the update; can be empty, a full URL, or a Google Drive file id.
     #[serde(default)]
     pub image: String,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct UpdaterInfo {
-    pub version: String,
-    pub url: String,
-    pub source: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -57,109 +46,169 @@ struct UpdateProgress {
     total: u64,
 }
 
-fn manifest_url(file_id: &str) -> String {
-    format!("https://drive.usercontent.google.com/u/0/uc?id={}", file_id)
+/// "v1.2.3" / "1.2.3-beta" -> [1, 2, 3]; non-numeric parts count as 0. Trailing zeros are dropped,
+/// so "1.2" and "1.2.0" compare equal.
+fn parse_version(v: &str) -> Vec<u64> {
+    let mut parts: Vec<u64> = v
+        .trim_start_matches('v')
+        .split('-')
+        .next()
+        .unwrap_or("")
+        .split('.')
+        .map(|p| p.parse().unwrap_or(0))
+        .collect();
+    while parts.last() == Some(&0) {
+        parts.pop();
+    }
+    parts
 }
 
-async fn fetch_manifest() -> Result<LauncherUpdateManifest, String> {
-    let client = Client::new();
-    let response = client
-        .get(manifest_url(MAIN_MANIFEST))
+async fn get_json(url: &str) -> Result<Value, String> {
+    let client = Client::builder().timeout(STALL_TIMEOUT).build().map_err(|e| e.to_string())?;
+    client
+        .get(url)
+        .header("User-Agent", "nihao-launcher") // GitHub rejects requests without one
         .send()
         .await
-        .map_err(|e| format!("Cannot reach update server: {e}"))?;
-    let raw = response
-        .text()
+        .map_err(|e| format!("cannot reach it: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("release lookup failed: {e}"))?
+        .json()
         .await
-        .map_err(|e| format!("Cannot read update manifest: {e}"))?;
-
-    serde_json::from_str::<LauncherUpdateManifest>(&raw)
-        .or_else(|_| serde_json::from_str::<LauncherUpdateManifest>(&repair_missing_commas(&raw)))
-        .map_err(|e| format!("Invalid update manifest: {e}"))
+        .map_err(|e| format!("invalid response: {e}"))
 }
 
-/// Best-effort fix for the common hand-editing mistake of a missing comma between
-/// two JSON object members on adjacent lines (the manifest is hand-typed on the server side).
-fn repair_missing_commas(raw: &str) -> String {
-    let lines: Vec<&str> = raw.lines().collect();
-    let mut fixed = String::with_capacity(raw.len() + lines.len());
+/// The download URL of the first `.zip` among `(file name, url)` pairs.
+fn pick_zip<'a>(mut assets: impl Iterator<Item = (&'a str, &'a str)>) -> Option<&'a str> {
+    assets.find(|(name, url)| name.ends_with(".zip") || url.ends_with(".zip")).map(|(_, url)| url)
+}
 
-    for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim_end();
-        let next_starts_new_member = lines[i + 1..]
-            .iter()
-            .find(|l| !l.trim().is_empty())
-            .map(|l| l.trim_start().starts_with('"'))
-            .unwrap_or(false);
-        let ends_with_value = trimmed.ends_with('"') || trimmed.ends_with(']') || trimmed.ends_with('}');
-        let needs_comma = ends_with_value && !trimmed.ends_with(',') && next_starts_new_member;
+fn release_info(tag: Option<&str>, url: Option<&str>, description: Option<&str>) -> Result<UpdateInfo, String> {
+    Ok(UpdateInfo {
+        version: tag.ok_or("release has no tag_name")?.trim_start_matches('v').to_string(),
+        url: url.ok_or("latest release has no .zip asset")?.to_string(),
+        source: "Url".to_string(),
+        description: description.unwrap_or("").to_string(),
+        image: String::new(),
+    })
+}
 
-        fixed.push_str(line);
-        if needs_comma {
-            fixed.push(',');
+async fn fetch_github() -> Result<UpdateInfo, String> {
+    let release = get_json(GITHUB_RELEASES_API).await?;
+    let assets = release["assets"].as_array().map(Vec::as_slice).unwrap_or_default();
+    let url = pick_zip(assets.iter().filter_map(|a| Some((a["name"].as_str()?, a["browser_download_url"].as_str()?))));
+    release_info(release["tag_name"].as_str(), url, release["body"].as_str())
+}
+
+async fn fetch_gitlab() -> Result<UpdateInfo, String> {
+    let release = get_json(GITLAB_RELEASES_API).await?;
+    // `assets.links` are the files attached to the release; `assets.sources` is GitLab's own source archive, not ours.
+    let links = release["assets"]["links"].as_array().map(Vec::as_slice).unwrap_or_default();
+    let url = pick_zip(links.iter().filter_map(|l| {
+        Some((l["name"].as_str()?, l["direct_asset_url"].as_str().or_else(|| l["url"].as_str())?))
+    }));
+    release_info(release["tag_name"].as_str(), url, release["description"].as_str())
+}
+
+/// The latest release of every source that answered, newest first (GitHub first on a tie).
+async fn fetch_releases() -> Result<Vec<(&'static str, UpdateInfo)>, String> {
+    let (github, gitlab) = tokio::join!(fetch_github(), fetch_gitlab());
+    sort_releases(github, gitlab)
+}
+
+/// Fails only when no source answered, naming why each one failed.
+fn sort_releases(
+    github: Result<UpdateInfo, String>,
+    gitlab: Result<UpdateInfo, String>,
+) -> Result<Vec<(&'static str, UpdateInfo)>, String> {
+    let (mut releases, mut errors) = (Vec::new(), Vec::new());
+    for (host, result) in [("GitHub", github), ("GitLab", gitlab)] {
+        match result {
+            Ok(info) => releases.push((host, info)),
+            Err(e) => errors.push(format!("{host}: {e}")),
         }
-        fixed.push('\n');
     }
-    fixed
+    if releases.is_empty() {
+        return Err(errors.join("; "));
+    }
+    // Stable sort: on equal versions GitHub (pushed first) stays first.
+    releases.sort_by(|a, b| parse_version(&b.1.version).cmp(&parse_version(&a.1.version)));
+    Ok(releases)
 }
 
-async fn read_installed_record() -> Option<UpdateInfo> {
-    let path = get_program_path().ok()?.join(UPDATE_RECORD_FILE);
-    let content = tokio::fs::read_to_string(path).await.ok()?;
-    serde_json::from_str(&content).ok()
+fn is_newer_than_running(update: &UpdateInfo) -> bool {
+    parse_version(&update.version) > parse_version(env!("CARGO_PKG_VERSION"))
 }
 
-async fn write_installed_record(update: &UpdateInfo) -> Result<(), String> {
-    let path = get_program_path()?.join(UPDATE_RECORD_FILE);
-    let content = serde_json::to_string(update).map_err(|e| e.to_string())?;
-    tokio::fs::write(path, content).await.map_err(|e| e.to_string())
-}
-
-/// Checks the remote manifest against the last-installed record.
-/// Returns the full manifest when a different version is available, otherwise None.
+/// Returns the newest release (GitHub or GitLab) when it is newer than the running build, otherwise None.
 #[tauri::command]
 pub async fn check_for_update() -> Result<Option<LauncherUpdateManifest>, String> {
-    let manifest = fetch_manifest().await?;
-    let installed = read_installed_record().await;
-
-    let needs_update = match &installed {
-        Some(current) => {
-            current.version != manifest.lates_update.version || current.url != manifest.lates_update.url
-        }
-        None => true,
-    };
-
-    Ok(if needs_update { Some(manifest) } else { None })
+    let (_, newest) = fetch_releases().await?.remove(0);
+    Ok(is_newer_than_running(&newest).then_some(LauncherUpdateManifest { lates_update: newest }))
 }
 
 #[tauri::command]
-pub async fn install_update(window: tauri::Window, manifest: LauncherUpdateManifest) -> Result<(), String> {
-    let update = manifest.lates_update;
-    let download_url = match update.source.as_str() {
-        "GoogleDrive" => format!("https://drive.usercontent.google.com/u/0/uc?id={}&export=download", update.url),
-        _ => update.url.clone(),
-    };
+pub async fn install_update(window: tauri::Window) -> Result<(), String> {
+    // Always re-ask the sources: the webview (which also runs third-party themes/modules) must never
+    // be able to choose what gets unpacked over the launcher's own files.
+    let candidates: Vec<_> = fetch_releases().await?.into_iter().filter(|(_, u)| is_newer_than_running(u)).collect();
+    if candidates.is_empty() {
+        return Err("No newer release is available".to_string());
+    }
 
     let program_path = get_program_path()?;
     let cache_dir = program_path.join(".cache");
     tokio::fs::create_dir_all(&cache_dir).await.map_err(|e| e.to_string())?;
     let archive_path = cache_dir.join("launcher_update.cache");
+    let staging = cache_dir.join("update_new");
 
-    download_with_progress(&window, &download_url, &archive_path).await?;
-
-    emit_progress(&window, "extracting", 0, 1);
-    let archive_path_blocking = archive_path.clone();
-    let program_path_blocking = program_path.clone();
-    tokio::task::spawn_blocking(move || extract_archive(&archive_path_blocking, &program_path_blocking))
-        .await
-        .map_err(|e| e.to_string())??;
-
+    // Newest first; if a source's download or archive turns out bad, the next source gets its turn.
+    // Everything is unpacked aside first, so a bad/truncated zip fails before any launcher file is touched.
+    let mut errors = Vec::new();
+    let mut staged = None;
+    for (host, update) in candidates {
+        match stage_update(&window, &update.url, &archive_path, &staging).await {
+            Ok(()) => {
+                staged = Some(update);
+                break;
+            }
+            Err(e) => errors.push(format!("{host} {}: {e}", update.version)),
+        }
+    }
     let _ = tokio::fs::remove_file(&archive_path).await;
-    write_installed_record(&update).await?;
+    let Some(update) = staged else { return Err(errors.join("; ")) };
+
+    let program_path_blocking = program_path.clone();
+    tokio::task::spawn_blocking(move || {
+        let applied = apply_staged(&staging, &program_path_blocking);
+        let _ = std::fs::remove_dir_all(&staging);
+        applied
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
     write_pending_changelog(&update).await?;
     emit_progress(&window, "done", 1, 1);
 
     Ok(())
+}
+
+/// Downloads the release archive and unpacks it into a fresh `staging` folder.
+async fn stage_update(window: &tauri::Window, url: &str, archive_path: &Path, staging: &Path) -> Result<(), String> {
+    download_with_progress(window, url, &archive_path.to_path_buf()).await?;
+
+    emit_progress(window, "extracting", 0, 1);
+    let (archive, staging) = (archive_path.to_path_buf(), staging.to_path_buf());
+    tokio::task::spawn_blocking(move || {
+        let _ = std::fs::remove_dir_all(&staging);
+        let extracted = extract_archive(&archive, &staging);
+        if extracted.is_err() {
+            let _ = std::fs::remove_dir_all(&staging);
+        }
+        extracted
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 async fn write_pending_changelog(update: &UpdateInfo) -> Result<(), String> {
@@ -207,11 +256,11 @@ fn remove_old_files_in(dir: &Path) {
 }
 
 async fn download_with_progress(window: &tauri::Window, url: &str, dest: &PathBuf) -> Result<(), String> {
-    let client = Client::new();
-    let response = client
-        .get(url)
-        .send()
+    let client = Client::builder().connect_timeout(STALL_TIMEOUT).build().map_err(|e| e.to_string())?;
+    let response = tokio::time::timeout(STALL_TIMEOUT, client.get(url).send())
         .await
+        .map_err(|_| "Download request timed out".to_string())?
+        .and_then(|r| r.error_for_status())
         .map_err(|e| format!("Download request failed: {e}"))?;
     let total = response.content_length().unwrap_or(0);
 
@@ -219,7 +268,11 @@ async fn download_with_progress(window: &tauri::Window, url: &str, dest: &PathBu
     let mut stream = response.bytes_stream();
     let mut downloaded: u64 = 0;
 
-    while let Some(chunk) = stream.next().await {
+    // No total timeout (the archive can be big), but a stalled connection must not hang forever.
+    while let Some(chunk) = tokio::time::timeout(STALL_TIMEOUT, stream.next())
+        .await
+        .map_err(|_| "Download stalled".to_string())?
+    {
         let chunk = chunk.map_err(|e| format!("Download interrupted: {e}"))?;
         file.write_all(&chunk).await.map_err(|e| e.to_string())?;
         downloaded += chunk.len() as u64;
@@ -236,9 +289,25 @@ fn emit_progress(window: &tauri::Window, status: &str, current: u64, total: u64)
     );
 }
 
-/// Extracts `archive_path` (a zip) into `target_dir`, overwriting existing files.
-/// Files locked by the running process (e.g. our own .exe) are renamed aside first,
-/// since Windows allows renaming an open executable even though it can't be overwritten in place.
+/// Moves every file under `staged` over the same relative path in `target`. Files locked by the
+/// running process (e.g. our own .exe) are renamed aside first (see `write_replacing`), since
+/// Windows allows renaming an open executable even though it can't be overwritten in place.
+fn apply_staged(staged: &Path, target: &Path) -> Result<(), String> {
+    for entry in std::fs::read_dir(staged).map_err(|e| e.to_string())?.flatten() {
+        let from = entry.path();
+        let to = target.join(entry.file_name());
+        if from.is_dir() {
+            std::fs::create_dir_all(&to).map_err(|e| e.to_string())?;
+            apply_staged(&from, &to)?;
+        } else {
+            let mut src = std::fs::File::open(&from).map_err(|e| e.to_string())?;
+            write_replacing(&to, &mut src)?;
+        }
+    }
+    Ok(())
+}
+
+/// Extracts `archive_path` (a zip) into `target_dir`.
 fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<(), String> {
     let file = std::fs::File::open(archive_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
@@ -258,7 +327,8 @@ fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<(), String>
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
 
-        write_replacing(&out_path, &mut entry)?;
+        let mut out = std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -281,5 +351,47 @@ fn write_replacing(out_path: &Path, entry: &mut impl Read) -> Result<(), String>
             std::io::copy(entry, &mut f).map_err(|e| e.to_string())?;
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn release(version: &str) -> UpdateInfo {
+        release_info(Some(version), Some("https://x/a.zip"), None).unwrap()
+    }
+
+    #[test]
+    fn version_ordering() {
+        assert!(parse_version("v0.10.0") > parse_version("0.9.9"));
+        assert!(parse_version("0.1.1") > parse_version("0.1.0"));
+        assert!(parse_version("0.1.0-beta") == parse_version("0.1.0"));
+        assert!(parse_version("1.2") == parse_version("1.2.0"));
+    }
+
+    #[test]
+    fn the_newer_source_wins_and_github_wins_a_tie() {
+        let order = |g: Result<UpdateInfo, String>, l: Result<UpdateInfo, String>| {
+            sort_releases(g, l).unwrap().into_iter().map(|(host, _)| host).collect::<Vec<_>>()
+        };
+        assert_eq!(order(Ok(release("0.2.0")), Ok(release("0.3.0"))), ["GitLab", "GitHub"]);
+        assert_eq!(order(Ok(release("0.3.0")), Ok(release("0.2.0"))), ["GitHub", "GitLab"]);
+        assert_eq!(order(Ok(release("0.3.0")), Ok(release("0.3.0"))), ["GitHub", "GitLab"]);
+    }
+
+    #[test]
+    fn one_source_failing_falls_back_to_the_other() {
+        assert_eq!(sort_releases(Err("down".into()), Ok(release("0.3.0"))).unwrap()[0].0, "GitLab");
+        assert_eq!(sort_releases(Ok(release("0.3.0")), Err("down".into())).unwrap()[0].0, "GitHub");
+        let both = sort_releases(Err("a".into()), Err("b".into())).unwrap_err();
+        assert!(both.contains("GitHub: a") && both.contains("GitLab: b"));
+    }
+
+    #[test]
+    fn picks_the_zip_not_other_assets() {
+        let assets = [("notes.txt", "https://x/notes.txt"), ("nihao.zip", "https://x/nihao.zip")];
+        assert_eq!(pick_zip(assets.into_iter()), Some("https://x/nihao.zip"));
+        assert_eq!(pick_zip([("a.exe", "https://x/a.exe")].into_iter()), None);
     }
 }
