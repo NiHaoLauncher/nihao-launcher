@@ -52,5 +52,9 @@ src-tauri/logs/
 *.p12
 
 # Old copies kept by hand for reference; not part of the project
-design/backup/
+design/
 keys/
+.agents/
+.beads/
+.github/
+AGENTS.md

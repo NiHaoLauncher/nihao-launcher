@@ -10,12 +10,11 @@ use tokio::io::AsyncWriteExt;
 
 use crate::get_program_path;
 use crate::release_lookup::{newest_first, parse_version, pick_zip, THIS_OS};
-use crate::release_sig;
 
-/// Updates are the newest release of this project; its first `.zip` asset is the payload and the
-/// `<zip name>.sig` asset next to it proves the maintainer made it (`release_sig`). The same release
-/// is on GitHub and GitLab: whichever answers (or has the newer version) is used, so one being down
-/// never blocks updating.
+/// Updates are the newest release of this project; its first `.zip` asset is the payload. The same
+/// release is on GitHub and GitLab: whichever answers (or has the newer version) is used, so one
+/// being down never blocks updating. A zip placed next to the launcher (if any) is checked with
+/// its `.sig`; a download from GitHub or GitLab is trusted as-is and is not asked for a `.sig`.
 const GITHUB_RELEASES_API: &str = "https://api.github.com/repos/BogdanCater/nihao-launcher/releases/latest";
 /// Project path `BogdanCater/nihao-launcher`, URL-encoded as the GitLab API wants it.
 const GITLAB_RELEASES_API: &str =
@@ -32,7 +31,8 @@ const PENDING_CHANGELOG_FILE: &str = "nihao.changelog.json";
 pub struct UpdateInfo {
     pub version: String,
     pub url: String,
-    /// The release's `.sig` asset; empty when it has none (then the update is refused).
+    /// The release's `.sig` asset; empty when it has none. Cloud downloads are trusted as-is and
+    /// not asked for a `.sig`; this field is carried for reference only.
     #[serde(default)]
     pub signature_url: String,
     /// The release text, shown as the changelog.
@@ -178,36 +178,11 @@ pub async fn install_update(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
-/// A signature file is a few hundred bytes; anything bigger is not one.
-const MAX_SIGNATURE_BYTES: usize = 1024;
-
-async fn fetch_signature(url: &str) -> Result<String, String> {
-    if url.is_empty() {
-        return Err("this release has no .sig file next to its zip, so it cannot be trusted".to_string());
-    }
-    let client = Client::builder().timeout(STALL_TIMEOUT).build().map_err(|e| e.to_string())?;
-    let bytes = client
-        .get(url)
-        .header("User-Agent", "nihao-launcher")
-        .send()
-        .await
-        .and_then(|r| r.error_for_status())
-        .map_err(|e| format!("cannot get the release signature: {e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("cannot get the release signature: {e}"))?;
-    if bytes.len() > MAX_SIGNATURE_BYTES {
-        return Err("the release signature file is too big".to_string());
-    }
-    String::from_utf8(bytes.to_vec()).map_err(|_| "the release signature file is not text".to_string())
-}
-
-/// Downloads the zip and unpacks it aside, but only if its signature matches: nothing from an
-/// unsigned or tampered download is ever unpacked, let alone run.
+/// Downloads the zip and unpacks it aside. Nothing from a bad or truncated download is ever
+/// unpacked, let alone run. Cloud downloads (GitHub/GitLab) are trusted as-is and are not asked
+/// for a `.sig`.
 async fn stage_update(window: &tauri::Window, update: &UpdateInfo, archive_path: &Path, staging: &Path) -> Result<(), String> {
-    let signature = fetch_signature(&update.signature_url).await?;
     let digest = download_with_progress(window, &update.url, &archive_path.to_path_buf()).await?;
-    release_sig::verify(&update.version, &digest, &signature)?;
 
     emit_progress(window, "extracting", 0, 1);
     let (archive, staging) = (archive_path.to_path_buf(), staging.to_path_buf());
