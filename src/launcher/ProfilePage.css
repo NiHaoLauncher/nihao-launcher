@@ -4,8 +4,6 @@
   color: var(--text-color);
 }
 
-/* ── Left: general info ─────────────────────────────────── */
-
 .profile-sidebar {
   width: 260px;
   flex-shrink: 0;
@@ -63,8 +61,6 @@
   cursor: pointer;
   box-sizing: border-box;
 }
-
-/* ── Right: per-game info ───────────────────────────────── */
 
 .profile-games {
   flex: 1;

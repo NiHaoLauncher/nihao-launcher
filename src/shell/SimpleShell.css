@@ -1,0 +1,265 @@
+/*
+ * Built-in main-window layout (see SimpleShell.tsx). Zero specificity, so a theme's rules always
+ * win.
+ */
+:where(.simple-split) {
+  display: flex;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+:where(.simple-content) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:where(.simple-page) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+:where(.simple-bar) {
+  display: flex;
+  height: 50px;
+  flex-shrink: 0;
+  z-index: 5;
+}
+
+:where(.simple-shell:not([data-quick-panel="top"]) .simple-bar-spacer) { flex: 1; width: auto; }
+:where(.simple-shell:not([data-quick-panel="top"]) .simple-bar:not(.simple-bar-bottom)) { justify-content: flex-end; }
+:where(.simple-bar-spacer) { display: flex; align-items: center; gap: 8px; width: 250px; padding: 7px; }
+
+:where(.social-toggle) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-color);
+  background-color: var(--mainbar-background-color);
+}
+:where(.social-toggle) { position: relative; }
+:where(.social-toggle.active) { outline: 2px solid var(--main-color); }
+
+:where(.social-toggle-badge) {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--nh-ok);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+:where(.player-avatar) {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-color);
+  background-color: var(--mainbar-background-color);
+}
+
+:where(.player-avatar img) { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+:where(.player-avatar)::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  box-sizing: content-box;
+  border-radius: 50%;
+  border: 2px solid var(--main-background-color);
+  background-color: var(--text-secondary-color);
+}
+:where(.player-avatar.social-status-online)::after { background-color: var(--nh-ok); }
+:where(.player-avatar.social-status-playing)::after { background-color: var(--main-color); }
+:where(.player-avatar span) { font-size: 0.8rem; font-weight: 700; }
+
+:where(.simple-bar-bottom) { position: relative; border-top: 1px solid var(--border-subtle); }
+
+:where(.simple-side) {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  padding: 0 7px;
+}
+
+:where(.simple-side) { flex-direction: column; justify-content: space-between; align-items: center; }
+:where(.simple-account) { display: flex; align-items: center; gap: 8px; padding: 7px; }
+:where(.simple-side) .simple-account { flex-direction: column; padding: 12px 0; }
+:where(.simple-bar-bottom) .simple-account { position: absolute; left: 0; }
+
+:where(.simple-side) .quick-panels,
+:where(.simple-side) .quick-panel {
+  flex-direction: column;
+  margin: 0;
+}
+
+:where(.simple-side) .quick-panel {
+  padding: 12px 5px 12px 5px;
+  gap: 12px;
+  align-items: center;
+}
+
+:where(.simple-side) .quick-panel > p { display: none; }
+
+/*
+ * One solid panel instead of `main`'s translucent frame; the blocks inside are divided by thin
+ * lines. These selectors out-rank MainLayout.css's.
+ */
+main.mainLayout.simple-shell {
+  padding: 0;
+  background-color: var(--main-background-color);
+}
+
+.simple-shell.mainLayout .simple-split > .social {
+  background: transparent;
+  border-radius: 0;
+}
+
+.simple-shell.mainLayout .simple-split > .social.visible {
+  margin: 0;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.simple-shell.mainLayout > .progress {
+  background: transparent;
+  border-radius: 0;
+}
+
+.simple-shell.mainLayout > .progress.visible {
+  margin: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.simple-shell .simple-bar:not(.simple-bar-bottom) {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.simple-shell .simple-side {
+  background: transparent;
+}
+
+.simple-shell[data-quick-panel="left"] .simple-side { border-right: 1px solid var(--border-subtle); }
+.simple-shell[data-quick-panel="right"] .simple-side { border-left: 1px solid var(--border-subtle); }
+
+:where(.account-connecting) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-secondary-color);
+  font-size: 0.8rem;
+}
+
+:where(.account-connecting-spinner) {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--nh-fg) 20%, transparent);
+  border-top-color: var(--main-second-color);
+}
+
+:where(.account-connecting-text) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+:where(.account-signin) {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  color: var(--text-color);
+  background-color: var(--main-color);
+  font-size: 0.85rem;
+}
+
+:where(.account-signin:hover) { background-color: var(--main-second-color); }
+
+/*
+ * Quick panel left/right/bottom: the top bar only holds window controls and floats over the page.
+ * Last in the file so it wins.
+ */
+:where(.simple-shell:not([data-quick-panel="top"]) .simple-content) { position: relative; }
+:where(.simple-shell:not([data-quick-panel="top"]) .simple-bar:not(.simple-bar-bottom)) {
+  position: absolute;
+  top: 0;
+  right: 0;
+  pointer-events: none;
+}
+:where(.simple-shell:not([data-quick-panel="top"]) .simple-bar:not(.simple-bar-bottom) > *) { pointer-events: auto; }
+.simple-shell:not([data-quick-panel="top"]) .simple-bar-spacer { flex: none; width: auto; }
+.simple-shell:not([data-quick-panel="top"]) .simple-bar:not(.simple-bar-bottom) { border-bottom: none; }
+
+/*
+ * The top bar makes no stacking context (z-index: auto), so a modal overlay (z-index 100) covers
+ * it; the window controls keep their own z-index (#window-bar: 1000) and stay above.
+ */
+.simple-shell .simple-bar:not(.simple-bar-bottom) { z-index: auto; }
+
+/*
+ * Quick panel on every side: a quiet strip of rounded buttons, the active page marked by an accent
+ * ring. Uses the shell's own classes to out-rank MainLayout.css.
+ */
+.simple-shell.mainLayout .simple-side { padding: 0 8px; }
+.simple-shell.mainLayout .simple-bar .quick-panel { align-items: center; }
+.simple-shell.mainLayout .mainbar .quick-panels { gap: 8px; }
+.simple-shell.mainLayout .mainbar .quick-panel {
+  padding: 6px;
+  gap: 4px;
+  border-radius: 14px;
+  background-color: color-mix(in srgb, var(--nh-fg) 5%, transparent);
+}
+.simple-shell.mainLayout .mainbar .quick-panel > .hyperlink { width: 40px; height: 40px; border-radius: 10px !important; }
+.simple-shell.mainLayout .mainbar .quick-panel > .quick-item {
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  padding: 9px;
+  border-radius: 10px;
+  color: color-mix(in srgb, var(--nh-fg) 72%, transparent);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.simple-shell.mainLayout .mainbar .quick-panel > .quick-item:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--nh-fg) 10%, transparent);
+  color: var(--nh-fg);
+}
+.simple-shell.mainLayout .mainbar .quick-panel > .hyperlink.active { outline: 2px solid var(--main-color); outline-offset: 1px; }
+.simple-shell.mainLayout .mainbar .quick-panel > .quick-item.active {
+  outline: none;
+  color: var(--nh-fg);
+  background-color: color-mix(in srgb, var(--main-color) 24%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--main-color);
+}
+.simple-shell.mainLayout .mainbar .quick-panel > .quick-item:has(> img) { padding: 4px; }
+.simple-shell.mainLayout .mainbar .quick-panel > .quick-item > img { border-radius: 8px; }
+
+.simple-shell.mainLayout .simple-bar .quick-panel { padding: 4px; }
+.simple-shell.mainLayout .simple-bar .quick-panel > .quick-item,
+.simple-shell.mainLayout .simple-bar .quick-panel > .hyperlink { width: 34px; height: 34px; }
+.simple-shell.mainLayout .simple-bar .quick-panel > .quick-item { padding: 7px; }
+.simple-shell.mainLayout .simple-bar .quick-panel > .quick-item:has(> img) { padding: 3px; }

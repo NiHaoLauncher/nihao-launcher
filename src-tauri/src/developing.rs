@@ -11,38 +11,7 @@ use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
 
 use crate::plugins::loader::Plugin;
 use crate::LOADED_PLUGINS;
-
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
-/// Silent one-shot helpers (`cargo build`, `taskkill`) get no console at all — nothing the
-/// user needs to watch live. Without this, Windows auto-allocates a console for them since
-/// they run detached from any terminal the user can see.
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
-/// The module's UI dev server *is* meant to be watched, so it gets its own console window
-/// instead — `CREATE_NEW_CONSOLE` makes that explicit rather than relying on whatever
-/// Windows decides to auto-allocate (which was landing on top of the launcher's window).
-#[cfg(windows)]
-const CREATE_NEW_CONSOLE: u32 = 0x00000010;
-
-#[cfg(windows)]
-fn no_window(cmd: &mut Command) -> &mut Command {
-    cmd.creation_flags(CREATE_NO_WINDOW)
-}
-#[cfg(not(windows))]
-fn no_window(cmd: &mut Command) -> &mut Command {
-    cmd
-}
-
-#[cfg(windows)]
-fn own_console(cmd: &mut Command) -> &mut Command {
-    cmd.creation_flags(CREATE_NEW_CONSOLE)
-}
-#[cfg(not(windows))]
-fn own_console(cmd: &mut Command) -> &mut Command {
-    cmd
-}
+use crate::platforms::{kill_process_tree, no_window, npm, own_console};
 
 static RELOAD_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -51,19 +20,21 @@ lazy_static! {
 }
 
 pub fn init_dev_mode() {
-    // Load .env file
+    // A release build ignores any `.env` next to the exe: it is a developer's file.
+    if !cfg!(debug_assertions) {
+        return;
+    }
     if let Err(e) = dotenvy::dotenv() {
         println!("No .env file found: {}", e);
         return;
     }
 
-    // Check if DEV_MODULE is set
     if let Ok(module_name) = env::var("DEV_MODULE") {
         println!("Development mode active for module: {}", module_name);
 
-        // Load through the same staged-copy path used for hot-reload (see `rebuild_and_reload`)
-        // instead of `Plugin::load`'s direct path — otherwise this first load would lock
-        // `target/debug/{module}.dll` itself, and `cargo build` could never overwrite it later.
+        // Load through the staged-copy path used for hot-reload (`rebuild_and_reload`):
+        // `Plugin::load`'s direct path would lock `target/debug/{module}.dll` and `cargo build`
+        // could never overwrite it.
         if let Err(e) = rebuild_and_reload(&module_name) {
             eprintln!("Failed to load dev module '{}':\n{}", module_name, e);
         }
@@ -73,16 +44,15 @@ pub fn init_dev_mode() {
     }
 }
 
-/// `plugin-sources/games/{module}/ui` — the module's own Vite/React sub-project.
 fn module_ui_dir(module_name: &str) -> PathBuf {
     PathBuf::from("../plugin-sources/games")
         .join(module_name)
         .join("ui")
 }
 
-/// Starts the module's own `npm run dev` (its UI's Vite dev server) so `cargo tauri dev`
-/// is the only command a module author needs to run. If something is already listening on
-/// `DEV_UI_PORT` (e.g. started manually), it's left alone instead of spawning a duplicate.
+/// Starts the module's own `npm run dev` (its UI's Vite dev server) so `cargo tauri dev` is the
+/// only command a module author runs. If something already listens on `DEV_UI_PORT`, it is left
+/// alone.
 fn spawn_dev_ui_server(module_name: &str) {
     let ui_dir = module_ui_dir(module_name);
     if !ui_dir.exists() {
@@ -111,10 +81,8 @@ fn spawn_dev_ui_server(module_name: &str) {
         module_name, port
     );
 
-    let mut cmd = Command::new("cmd");
+    let mut cmd = npm();
     cmd.args([
-        "/C",
-        "npm",
         "run",
         "dev",
         "--",
@@ -123,8 +91,6 @@ fn spawn_dev_ui_server(module_name: &str) {
         "--strictPort",
     ])
     .current_dir(&ui_dir);
-    // Own console window, not redirected — a new console needs its own I/O handles,
-    // not the launcher's inherited ones.
     let child = own_console(&mut cmd).spawn();
 
     match child {
@@ -133,31 +99,20 @@ fn spawn_dev_ui_server(module_name: &str) {
     }
 }
 
-/// Kills the auto-started UI dev server, if any. Called on app exit so closing the
-/// launcher doesn't leave an orphaned `npm`/`vite` process behind.
+/// Kills the auto-started UI dev server on app exit so no orphaned `npm`/`vite` stays behind.
 ///
-/// `child` here is the `cmd /C npm run dev` wrapper, not `node` itself — plain
-/// `child.kill()` would only kill `cmd.exe` and leave the actual Vite/node process running,
-/// so on Windows we kill the whole process tree via `taskkill /T`.
+/// `child` is the `cmd /C npm run dev` wrapper, not `node`: a plain `kill()` would only stop
+/// `cmd.exe`, so on Windows the whole tree is killed via `taskkill /T`.
 pub fn shutdown_dev_ui_server() {
     if let Some(mut child) = DEV_UI_CHILD.lock().unwrap().take() {
-        #[cfg(windows)]
-        {
-            let mut cmd = Command::new("taskkill");
-            cmd.args(["/PID", &child.id().to_string(), "/T", "/F"]);
-            let _ = no_window(&mut cmd).output();
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = child.kill();
-        }
+        kill_process_tree(&mut child);
         let _ = child.wait();
     }
 }
 
-/// `plugin-sources/common` is a real Cargo dependency of `src-tauri`, so Tauri's own
-/// dev-mode Rust watcher already rebuilds+restarts the whole app when it changes.
-/// Only the dynamically `libloading`-loaded plugin crate needs a watcher of its own.
+/// `plugin-sources/common` is a Cargo dependency of `src-tauri`, so Tauri's dev watcher already
+/// rebuilds the app when it changes; only the `libloading`-loaded plugin crate needs a watcher of
+/// its own.
 fn module_source_dir(module_name: &str) -> PathBuf {
     PathBuf::from("../plugin-sources/games")
         .join(module_name)
@@ -194,7 +149,6 @@ fn watch_module_source(module_name: String) {
 
         println!("[dev] Watching '{}' for changes...", watch_dir.display());
 
-        // Keeps the debouncer (and therefore the watch) alive for as long as this thread runs.
         for result in rx {
             match result {
                 Ok(events) if !events.is_empty() => {
@@ -210,9 +164,8 @@ fn watch_module_source(module_name: String) {
     });
 }
 
-/// Rebuilds the plugin crate and hot-swaps the loaded `.dll` in place. On a build failure
-/// the currently loaded plugin is left untouched, mirroring how Vite HMR keeps serving the
-/// last-good frontend bundle after a compile error.
+/// Rebuilds the plugin crate and hot-swaps the loaded `.dll`. On a build failure the loaded plugin
+/// is left untouched (like Vite HMR keeping the last-good bundle).
 fn rebuild_and_reload(module_name: &str) -> Result<(), String> {
     let mut cmd = Command::new("cargo");
     cmd.args(["build", "-p", module_name]);
@@ -233,9 +186,8 @@ fn rebuild_and_reload(module_name: &str) -> Result<(), String> {
         ));
     }
 
-    // Windows locks a .dll file while it's mapped into this process, so `cargo build` must
-    // always be free to write to `built_path` — we load a freshly copied, uniquely named
-    // file instead of the original every time.
+    // Windows locks a mapped .dll, so `cargo build` must stay free to write `built_path`: load a
+    // freshly copied, uniquely named file every time.
     let staging_dir = Path::new("../target/debug/.dev_reload");
     std::fs::create_dir_all(staging_dir).map_err(|e| e.to_string())?;
 
@@ -257,7 +209,8 @@ fn rebuild_and_reload(module_name: &str) -> Result<(), String> {
     LOADED_PLUGINS
         .lock()
         .unwrap()
-        .insert(module_name.to_string(), new_plugin);
+        .insert(module_name.to_string(), std::sync::Arc::new(new_plugin));
+    crate::local::push_context(&module_name);
 
     println!(
         "✅ Module '{}' loaded ({} {}).",
@@ -266,12 +219,19 @@ fn rebuild_and_reload(module_name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// `tag` (when given) is appended as a query string on the `index.tsx` import — this makes
-/// each load a distinct module specifier from the browser's point of view, forcing a real
-/// re-fetch instead of reusing whatever was imported under that same bare URL earlier in
-/// the session, and lets `index.tsx` read back the custom-element tag name the host wants
-/// it to register under this time (see `GameLoader.tsx`).
+/// `tag` (when given) is appended as a query string on the `index.tsx` import: each load is a
+/// distinct module specifier (forcing a real re-fetch) and `index.tsx` reads it back as the
+/// custom-element tag to register (see `GameLoader.tsx`).
 pub fn get_dev_ui_script(module: &str, tag: Option<&str>) -> Option<String> {
+    // Development builds only: a release must not load a module's UI from whatever listens on a
+    // local port because `DEV_MODULE` happens to be set on this PC.
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    // `tag` goes into a script: a custom element name, nothing else.
+    if tag.is_some_and(|t| t.is_empty() || !t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')) {
+        return None;
+    }
     let dev_module = env::var("DEV_MODULE").ok()?;
     let dev_port = env::var("DEV_UI_PORT").unwrap_or_else(|_| "5173".to_string());
     let query = tag.map(|t| format!("?tag={}", t)).unwrap_or_default();

@@ -4,43 +4,38 @@ import { invoke } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
 import { useClient } from "./context/ClientContext";
 import { useModal } from "./context/ModalContext";
+import { useToast } from "./context/ToastContext";
 import { useAuth } from "./context/AuthContext";
 import BlankLayout from "./layout/BlankLayout";
-import ConnectionLayout from "./layout/ConnectionLayout";
+import LoadingScreen from "./layout/LoadingScreen";
 import { GameBanner, GameSettings } from "./games/Games";
-import { getGameConfig, saveGameSettings } from "./games/GameRegistry";
+import { getGameConfig, saveGameSettings, GameConfig } from "./games/GameRegistry";
+import "./launcher.css";
 import { LocalClient } from "./launcher/UserProfile";
 import GetUserData from "./launcher/Authorization";
 import { Navigate } from "react-router-dom";
-import { T } from "@shared";
-import { useInitLanguage } from "./context/LanguageContext";
+import { T, t, Modal, modalCloseMs, animationsOff } from "@shared";
+import { useLocalization } from "./state/Localization";
+import { useLoginModal } from "./hooks/useLoginModal";
 
+/** A newer release (`UpdateInfo` in updater.rs); `description` is its text. */
 interface UpdateInfo {
-  server: string;
-  args: string[];
   version: string;
-  min_updater_version: string;
-  url: string;
-  source: string;
   description: string;
-  path_notes: string[];
-  image: string;
-}
-interface LauncherUpdateManifest {
-  lates_update: UpdateInfo;
 }
 
 export function InitPage() {
-  const { localClient, setLocalClient, markLocalClientLoaded } = useClient();
+  const { setLocalClient, markLocalClientLoaded } = useClient();
   const { status, error, skipConnecting } = useAuth();
-  const { confirm, openModal, closeModal } = useModal();
-  const initLanguage = useInitLanguage();
+  const { confirm, closeModal } = useModal();
+  const { showToast } = useToast();
+  const openLoginModal = useLoginModal();
+  const initLanguage = useLocalization((s) => s.load);
   const [title, setTitle] = useState("Initialization")
   const [showNewUser, setShowNewUser] = useState(false);
   const [redirect, setRedirect] = useState(false);
-  // Set once a returning user's profile (with a previously-linked account) has loaded —
-  // keeps this screen up, retrying quietly in the background, until the reconnect succeeds
-  // or the user skips it, instead of racing ahead to /home with no visible feedback.
+  // Set once a returning, previously-linked user's profile has loaded: keeps this screen up while
+  // the reconnect retries, until it succeeds or the user skips.
   const [awaitingConnection, setAwaitingConnection] = useState(false);
   const rejectionHandledRef = useRef(false);
   const [updateProgress, setUpdateProgress] = useState<{ current: number; total: number } | null>(null);
@@ -72,34 +67,41 @@ export function InitPage() {
   }
 
   async function checkForUpdate() {
-    let manifest: LauncherUpdateManifest | null;
+    let info: UpdateInfo | null;
     try {
-      manifest = await invoke("check_for_update", {});
+      info = await invoke("check_for_update", {});
     } catch (e) {
       console.warn(`Update check failed, skipping: ${e}`);
       return;
     }
-    if (!manifest) return;
+    if (!info) return;
 
-    const info = manifest.lates_update;
     const accepted = await askUpdateConfirmation(info);
     if (!accepted) return;
 
-    setTitle("Downloading update");
+    setTitle(t("update.status_downloading", "Downloading update"));
     setUpdateProgress({ current: 0, total: 0 });
     const unlisten = await listen<{ status: string; current: number; total: number }>("update-progress", (event) => {
       setUpdateProgress({ current: event.payload.current, total: event.payload.total });
       if (event.payload.status === "extracting") {
-        setTitle("Installing update");
+        setTitle(t("update.status_installing", "Installing update"));
       }
     });
     try {
-      await invoke("install_update", { manifest });
+      await invoke("install_update", {});
+    } catch (e) {
+      // A download that stalled or a release that does not check out must not keep the launcher from
+      // starting: say so and carry on with the version that is installed.
+      console.warn(`Update failed: ${e}`);
+      setUpdateProgress(null);
+      setTitle(t("init.status_getting_info", "Getting you info"));
+      showToast({ message: `${t("update.failed", "The update failed, the launcher starts as it is")}: ${e}`, variant: "error", duration: 10000 });
+      return;
     } finally {
       unlisten();
     }
 
-    setTitle("Restarting");
+    setTitle(t("update.status_restarting", "Restarting"));
     await invoke("relaunch_app", {});
     // The process exits here; keep the UI frozen until it actually does.
     await new Promise(() => {});
@@ -119,82 +121,74 @@ export function InitPage() {
 
   useEffect(() => {
     const loading = async () => {
+      // Load the profile (and its language) before the update flow so the update modal uses the
+      // saved language.
+      setTitle(t("init.status_getting_info", "Getting you info"));
+      let profile: LocalClient | null = null;
+      try {
+        profile = await invoke<LocalClient>("init_local_data", {});
+        setLocalClient(profile);
+        initLanguage(profile.interface.language ?? "en_us");
+      } catch (e) {
+        console.info(`Error init localdata: ${e}`)
+      }
+
       await checkForUpdate();
       await showPendingChangelogIfAny();
-      try {
-        setTitle("Getting you info")
-        const profile: LocalClient = await invoke("init_local_data", {});
-        setLocalClient(profile);
-        initLanguage(localClient?.interface.language ?? "en_us");
-        if (profile.client) {
-          // Previously linked an account — wait here for AuthContext's reconnect (it retries
-          // on its own) instead of racing ahead to /home with no visible feedback.
-          setTitle("Connecting to server");
+
+      if (profile) {
+        if (profile.linked) {
+          // Previously linked: wait for AuthContext's reconnect instead of racing ahead to /home.
+          setTitle(t("init.status_connecting_server", "Connecting to server"));
           setAwaitingConnection(true);
         } else {
           setRedirect(true);
         }
-      } catch (e) {
-        if (e == "data_not_alive") {
-          setTitle("Setup you info")
-          setShowNewUser(true);
-        }
-        console.info(`Error init localdata: ${e}`)
-      } finally {
-        // Resolved either way (found a profile, or confirmed there isn't one yet) — AuthContext
-        // was waiting on this before it could safely decide whether to probe the server.
-        markLocalClientLoaded();
+      } else {
+        setTitle(t("init.status_setup_info", "Setup you info"));
+        setShowNewUser(true);
       }
+      markLocalClientLoaded();
     };
     loading();
-    // Intentionally run once on mount only: `setLocalClient` is re-created on every
-    // ClientProvider render (e.g. when initLanguage() below updates language state),
-    // and re-running this effect would show the update confirmation twice.
+    // Mount-only on purpose: `setLocalClient` changes identity on every ClientProvider render, and
+    // a rerun would show the update confirmation twice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!awaitingConnection) return;
     if (status === "authenticated") {
-      closeModal(); // no-op if the relogin modal below was never opened
+      closeModal();
       setRedirect(true);
       return;
     }
     if (status !== "anonymous" || rejectionHandledRef.current) return;
 
     if (!error) {
-      // Stream just ended with no explicit reason from the server — nothing to show a
-      // modal about, so just continue rather than blocking on it.
       setRedirect(true);
       return;
     }
 
-    // The server actively rejected the stored session (not merely unreachable) — ask
-    // whether to sign in again or keep going offline, instead of dropping it silently.
+    // The server rejected the stored session (not merely unreachable): ask whether to sign in
+    // again or continue offline.
     rejectionHandledRef.current = true;
     confirm({
       message: error,
-      confirmText: "Relogin",
-      cancelText: "Offline",
+      confirmText: t("init.relogin_confirm", "Relogin"),
+      cancelText: t("init.relogin_cancel", "Offline"),
       variant: "primary",
     }).then((relogin) => {
       if (!relogin) {
         setRedirect(true);
         return;
       }
-      openModal({
-        title: "Sign in",
-        size: "small",
-        showCloseButton: false,
-        closeOnBackdrop: false,
-        closeOnEscape: false,
-        content: (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
-            <GetUserData />
-            <button onClick={() => { skipConnecting(); closeModal(); setRedirect(true); }}>
-              <T k="button.skipNetwork" />
-            </button>
-          </div>
+      openLoginModal({
+        dismissible: false,
+        extra: (
+          <button onClick={() => { skipConnecting(); closeModal(); setRedirect(true); }}>
+            <T k="button.skipNetwork" />
+          </button>
         ),
       });
     });
@@ -208,28 +202,19 @@ export function InitPage() {
     return <Navigate to="/home" />
   }
 
+  const progress = updateProgress
+    ? (updateProgress.total > 0 ? Math.min(100, (updateProgress.current / updateProgress.total) * 100) : 0)
+    : null;
+
   return (
-    <ConnectionLayout>
-      <div style={{ display: "grid", placeItems: "center", justifyContent: "center", alignItems: "center" }}>
-        <h1>{title}</h1>
-        <img src={Loading} style={{ imageRendering: "pixelated", width: "150px" }} />
-        {updateProgress && (
-          <div style={{ width: "300px", height: "8px", background: "#ddd", borderRadius: "4px", overflow: "hidden", marginTop: "1rem" }}>
-            <div style={{
-              width: `${updateProgress.total > 0 ? Math.min(100, (updateProgress.current / updateProgress.total) * 100) : 0}%`,
-              height: "100%",
-              background: "var(--main-color)",
-              transition: "width 0.2s",
-            }} />
-          </div>
-        )}
-        {awaitingConnection && (
-          <button
-            onClick={() => { skipConnecting(); setRedirect(true); }}
-            style={{ marginTop: "1rem" }}
-          ><T k="button.skipNetwork" /></button>
-        )}
-      </div>
+    <>
+      <LoadingScreen
+        title={title}
+        image={Loading}
+        progress={progress}
+        onSkip={awaitingConnection ? () => { skipConnecting(); setRedirect(true); } : undefined}
+        skipLabel={<T k="button.skipNetwork" />}
+      />
       {updatePrompt && (
         <UpdateInfoModal
           info={updatePrompt.info}
@@ -245,18 +230,8 @@ export function InitPage() {
           onDismiss={() => changelog.resolve()}
         />
       )}
-    </ConnectionLayout>
+    </>
   );
-}
-
-/* ============================================================
-   Update info / changelog modal
-   ============================================================ */
-
-function resolveUpdateImageUrl(image: string): string {
-  if (!image) return "";
-  if (/^https?:\/\//i.test(image)) return image;
-  return `https://drive.usercontent.google.com/u/0/uc?id=${image}`;
 }
 
 function UpdateInfoModal({
@@ -270,95 +245,90 @@ function UpdateInfoModal({
   onConfirm?: () => void;
   onDismiss: () => void;
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const imageUrl = resolveUpdateImageUrl(info.image);
+  // Close first so the shared Modal plays its exit; the parent unmounts the moment an answer is
+  // reported.
+  const [open, setOpen] = useState(true);
+  const answer = (report?: () => void) => {
+    setOpen(false);
+    setTimeout(() => report?.(), animationsOff() ? 0 : modalCloseMs());
+  };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-container modal-size-medium">
-        <div className="modal-header">
-          <h3>{mode === "confirm" ? "Update available" : "What's new"} — {info.version}</h3>
-        </div>
-        <div className="modal-body">
-          <div className="modal-content">
-            {imageUrl && !imageFailed && (
-              <img
-                src={imageUrl}
-                onError={() => setImageFailed(true)}
-                style={{ width: "100%", borderRadius: "8px", marginBottom: "1rem", display: "block" }}
-              />
-            )}
-            {info.description && <p style={{ marginTop: 0 }}>{info.description}</p>}
-            {info.path_notes.length > 0 && (
-              <ul style={{ paddingLeft: "1.2rem", margin: 0 }}>
-                {info.path_notes.map((line, i) =>
-                  line.startsWith("[") && line.endsWith("]") ? (
-                    <li key={i} style={{ listStyle: "none", marginLeft: "-1.2rem", fontWeight: "bold", marginTop: i === 0 ? 0 : "0.75rem" }}>
-                      {line}
-                    </li>
-                  ) : (
-                    <li key={i}>{line.replace(/^-\s*/, "")}</li>
-                  )
-                )}
-              </ul>
-            )}
-          </div>
-        </div>
-        <div className="modal-footer confirm-actions">
+    <Modal
+      isOpen={open}
+      onClose={() => answer(onDismiss)}
+      title={`${mode === "confirm" ? t("update.title_available", "Update available") : t("update.title_whats_new", "What's new")} — ${info.version}`}
+      size="medium"
+      // an update decision must be made on purpose, not by a stray click or Escape
+      closeOnBackdrop={false}
+      closeOnEscape={false}
+      showCloseButton={false}
+      footer={
+        <>
           {mode === "confirm" && (
-            <button onClick={onDismiss} type="button">Later</button>
+            <button onClick={() => answer(onDismiss)} type="button">{t("update.later", "Later")}</button>
           )}
-          <button className="btn-primary" onClick={mode === "confirm" ? onConfirm : onDismiss} type="button">
-            {mode === "confirm" ? "Update" : "Close"}
+          <button
+            className="btn-primary"
+            onClick={() => answer(mode === "confirm" ? onConfirm : onDismiss)}
+            type="button"
+          >
+            {mode === "confirm" ? t("update.now", "Update") : t("close_button", "Close")}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {info.description && <p style={{ marginTop: 0 }}>{info.description}</p>}
+    </Modal>
   );
 }
-
-/* ============================================================
-   NewUser - Multi-step onboarding flow
-   ============================================================ */
 
 type OnboardingStep = "language" | "policy" | "get-to-know" | "setup-games" | "network-connect" | "final-setup" | "restarting";
 
 function NewUser() {
-  const { setLocalClient, language } = useClient();
+  const { setLocalClient } = useClient();
+  const language = useLocalization((s) => s.language);
   const { confirm } = useModal();
-  const { refreshToken } = useAuth();
+  const { status: authStatus } = useAuth();
 
   const [step, setStep] = useState<OnboardingStep>("language");
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [nickname, setNickname] = useState("");
   const [selectedGames, setSelectedGames] = useState<string[]>([]);
+  // Per-game path and settings edited in the "setup-games" step; only games the user opened appear.
+  const [gameSetups, setGameSetups] = useState<Record<string, GameSetupState>>({});
 
   function finalSetupF() {
-    // If NetworkStep logged the user in, `refreshToken` is already sitting in AuthContext —
-    // it couldn't be persisted to disk earlier because this is the first time a local
-    // profile (and thus local.data) is created at all.
+    // If NetworkStep logged in, the backend already holds the refresh token (`save_local_data`
+    // writes it into local.data); `linked` just mirrors that.
     let data: LocalClient = {
-      client: refreshToken,
+      linked: authStatus === "authenticated",
+      // Account-wide default nickname, bridged to every module as
+      // `LauncherBridge.defaultNickname`.
+      nickname: nickname.trim() || undefined,
       interface: {
         language: selectedLanguage ?? "en_us",
         hide_in_game_running: true,
+        discord_presence_enabled: false,
+        animations_enabled: true,
       },
-      games: {},
+      games: Object.fromEntries(
+        selectedGames.filter((id) => gameSetups[id]).map((id) => [id, { path: gameSetups[id].path }]),
+      ),
     };
     setLocalClient(data);
     invoke("save_local_data", { data })
+      .then(() => Promise.all(selectedGames.filter((id) => gameSetups[id]).map(async (id) => {
+        const { path, values } = gameSetups[id];
+        const cfg = await getGameConfig(id);
+        // Only the module's declared settings, same as `GameSettingsTab`.
+        const own = Object.fromEntries(
+          (cfg.settingsFields ?? []).filter((f) => values[f.key] !== undefined).map((f) => [f.key, values[f.key]]),
+        );
+        await saveGameSettings(path, own);
+      })))
       .catch((e) => console.error(`Error saving LocalClient: ${e}`));
-
-    // The nickname asked for here goes straight into Minecraft's own "Nickname" setting, in
-    // its game.nihao (not local.data — see GameSettingsTab.tsx / local.rs's save_game_settings),
-    // the exact same field the Minecraft Settings tab itself reads and writes, so this is a
-    // single source of truth rather than a separate onboarding-only copy that could drift.
-    // Written unconditionally even if Minecraft isn't among the selected games — harmless,
-    // and saves having to ask again if it's installed later.
-    getGameConfig("minecraft")
-      .then((cfg) => saveGameSettings(cfg.defaultPath, { nickname: nickname.trim() || "Player" }))
-      .catch((e) => console.error(`Error saving Minecraft nickname: ${e}`));
 
     handleNext();
   }
@@ -410,7 +380,6 @@ function NewUser() {
         padding: "2rem",
         boxSizing: "border-box",
       }}>
-        {/* Step content */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
           {step === "language" && (
             <LanguageSelectionStep
@@ -433,7 +402,11 @@ function NewUser() {
             />
           )}
           {step === "setup-games" && (
-            <GameSetup selectedGames={selectedGames} />
+            <GameSetup
+              selectedGames={selectedGames}
+              setups={gameSetups}
+              onSetupChange={(id, setup) => setGameSetups((prev) => ({ ...prev, [id]: setup }))}
+            />
           )}
           {step === "network-connect" && (
             <NetworkStep setupFunction={finalSetupF} />
@@ -443,7 +416,6 @@ function NewUser() {
           )}
         </div>
 
-        {/* Navigation buttons */}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2rem" }}>
           {step == "policy" || step == "get-to-know" ? (
             <button
@@ -492,7 +464,6 @@ function NewUser() {
           ) : (<></>)}
         </div>
 
-        {/* Step indicator dots */}
         <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", marginTop: "1.5rem" }}>
           {(["language", "policy", "get-to-know", 'network-connect', 'final-setup'] as OnboardingStep[]).map((s) => (
             <div
@@ -512,10 +483,6 @@ function NewUser() {
   );
 }
 
-/* ============================================================
-   Step 1: Language Selection
-   ============================================================ */
-
 function LanguageSelectionStep({
   selectedLanguage,
   onSelectLanguage
@@ -524,8 +491,8 @@ function LanguageSelectionStep({
   onSelectLanguage: (lang: string) => void;
 }) {
   const [languages, setLanguages] = useState<{ id: string, title: string }[]>([]);
-  const initLanguage = useInitLanguage();
-  const { language: glbLang } = useClient();
+  const initLanguage = useLocalization((s) => s.load);
+  const glbLang = useLocalization((s) => s.language);
 
   useEffect(() => {
     invoke("get_lang_list", {})
@@ -571,10 +538,6 @@ function LanguageSelectionStep({
     </div>
   );
 }
-
-/* ============================================================
-   Step 2: Policy Acceptance
-   ============================================================ */
 
 function PolicyAcceptanceStep({
   accepted,
@@ -637,10 +600,6 @@ function PolicyAcceptanceStep({
   );
 }
 
-/* ============================================================
-   Step 3: Get to Know You
-   ============================================================ */
-
 function GetToKnowStep({
   nickname,
   onNicknameChange,
@@ -652,7 +611,7 @@ function GetToKnowStep({
   selectedGames: string[];
   onGamesChange: (games: string[]) => void;
 }) {
-  const { language } = useClient();
+  const language = useLocalization((s) => s.language);
 
   function toggleGame(game: string) {
     if (selectedGames.includes(game)) {
@@ -678,7 +637,6 @@ function GetToKnowStep({
         <T k="startup.get_to_know.title" />
       </h1>
 
-      {/* Nickname input */}
       <div style={{ width: "100%", marginBottom: "2rem" }}>
         <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>
           {nicknameLabel}
@@ -700,13 +658,11 @@ function GetToKnowStep({
         />
       </div>
 
-      {/* Game selection */}
       <div style={{ width: "100%" }}>
         <label style={{ display: "block", marginBottom: "0.75rem", fontWeight: "bold" }}>
           {gamesLabel}
         </label>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center" }}>
-          {/* We'll list games that are currently loaded/available */}
           <GameListSelection selectedGames={selectedGames} onToggle={toggleGame} />
         </div>
       </div>
@@ -714,38 +670,64 @@ function GetToKnowStep({
   );
 }
 
+/**
+ * Same tile look as the Game Library (`home-game-tile-*` CSS) as a toggle-select grid: picked
+ * tiles get a checkmark badge, no hover flyout.
+ */
 function GameListSelection({ selectedGames, onToggle }: { selectedGames: string[], onToggle: (id: string) => void }) {
   const [modules, setModules] = useState<string[]>([]);
+  const [configs, setConfigs] = useState<Record<string, GameConfig>>({});
 
   useEffect(() => {
     invoke("list_modules").then((res: any) => setModules(res)).catch(console.error);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    modules.forEach((mod) => {
+      getGameConfig(mod).then((cfg) => {
+        if (!cancelled) setConfigs((prev) => ({ ...prev, [mod]: cfg }));
+      }).catch(console.error);
+    });
+    return () => { cancelled = true; };
+  }, [modules]);
+
   return (
     <>
-      {modules.map(mod => (
-        <div
-          key={mod}
-          onClick={() => onToggle(mod)}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: selectedGames.includes(mod) ? "var(--main-color)" : "var(--second-background-color)",
-            borderRadius: "10px",
-            cursor: "pointer",
-            fontWeight: "bold",
-            color: "white",
-            border: "2px solid " + (selectedGames.includes(mod) ? "var(--main-color)" : "transparent")
-          }}
-        >
-          {mod.toUpperCase()}
-        </div>
-      ))}
+      {modules.map(mod => {
+        const cfg = configs[mod];
+        const selected = selectedGames.includes(mod);
+        return (
+          <div
+            key={mod}
+            className={`onboarding-game-tile${selected ? " selected" : ""}`}
+            onClick={() => onToggle(mod)}
+          >
+            {cfg?.banner ? (
+              <img src={cfg.banner} className="home-game-tile-img" alt="" />
+            ) : (
+              <div className="home-game-tile-placeholder">{mod.substring(0, 2).toUpperCase()}</div>
+            )}
+            <div className="onboarding-game-tile-name">{cfg?.name ?? mod.toUpperCase()}</div>
+            {selected && <div className="onboarding-game-tile-check">✓</div>}
+          </div>
+        );
+      })}
       {modules.length === 0 && <p style={{ fontSize: "0.8rem", opacity: 0.5 }}>No modules loaded. Check your plugins folder.</p>}
     </>
   );
 }
 
-function GameSetup({ selectedGames }: { selectedGames: string[] }) {
+interface GameSetupState {
+  path: string;
+  values: Record<string, any>;
+}
+
+function GameSetup({ selectedGames, setups, onSetupChange }: {
+  selectedGames: string[];
+  setups: Record<string, GameSetupState>;
+  onSetupChange: (gameId: string, setup: GameSetupState) => void;
+}) {
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [gameConfig, setGameConfig] = useState<{
     name: string;
@@ -753,20 +735,33 @@ function GameSetup({ selectedGames }: { selectedGames: string[] }) {
     defaultPath: string;
     settingsFields?: any[];
   } | null>(null);
-  const [gamePath, setGamePath] = useState("");
-  const [gameValues, setGameValues] = useState<Record<string, any>>({});
+  const setup = activeGame ? setups[activeGame] : undefined;
+  const gamePath = setup?.path ?? gameConfig?.defaultPath ?? "";
+  const gameValues = setup?.values ?? {};
+  // Phase 1 needs every selected game's config (banner/name), not just the active one.
+  const [phaseOneConfigs, setPhaseOneConfigs] = useState<Record<string, GameConfig>>({});
 
   useEffect(() => {
     if (activeGame) {
       getGameConfig(activeGame).then((config) => {
         setGameConfig(config);
-        setGamePath(config.defaultPath);
-        setGameValues({});
+        if (!setups[activeGame]) onSetupChange(activeGame, { path: config.defaultPath, values: {} });
       }).catch(console.error);
+      // `setups` is read only to seed a first visit; re-running on its changes would loop.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }
   }, [activeGame]);
 
-  // Phase 1: show all banners
+  useEffect(() => {
+    let cancelled = false;
+    selectedGames.forEach((gameId) => {
+      getGameConfig(gameId).then((cfg) => {
+        if (!cancelled) setPhaseOneConfigs((prev) => ({ ...prev, [gameId]: cfg }));
+      }).catch(console.error);
+    });
+    return () => { cancelled = true; };
+  }, [selectedGames]);
+
   if (!activeGame || !gameConfig) {
     return (
       <div style={{ textAlign: "center" }}>
@@ -775,19 +770,15 @@ function GameSetup({ selectedGames }: { selectedGames: string[] }) {
         </h1>
         <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", justifyContent: "center" }}>
           {selectedGames.map((gameId) => {
+            const cfg = phaseOneConfigs[gameId];
             return (
-              <div
-                key={gameId}
-                onClick={() => setActiveGame(gameId)}
-                style={{
-                  padding: "20px",
-                  backgroundColor: "var(--second-background-color)",
-                  borderRadius: "12px",
-                  cursor: "pointer",
-                  minWidth: "150px"
-                }}
-              >
-                {gameId.toUpperCase()}
+              <div key={gameId} className="home-game-tile" onClick={() => setActiveGame(gameId)}>
+                {cfg?.banner ? (
+                  <img src={cfg.banner} className="home-game-tile-img" alt="" />
+                ) : (
+                  <div className="home-game-tile-placeholder">{gameId.substring(0, 2).toUpperCase()}</div>
+                )}
+                <div className="onboarding-game-tile-name">{cfg?.name ?? gameId.toUpperCase()}</div>
               </div>
             );
           })}
@@ -796,7 +787,6 @@ function GameSetup({ selectedGames }: { selectedGames: string[] }) {
     );
   }
 
-  // Phase 2: settings for active game
   return (
     <div style={{
       display: "flex",
@@ -805,7 +795,6 @@ function GameSetup({ selectedGames }: { selectedGames: string[] }) {
       maxWidth: "800px",
       alignItems: "flex-start",
     }}>
-      {/* Left: banner (click to go back) */}
       <div style={{ cursor: "pointer" }} onClick={() => setActiveGame(null)}>
         <GameBanner
           src={gameConfig.banner}
@@ -822,7 +811,6 @@ function GameSetup({ selectedGames }: { selectedGames: string[] }) {
         </p>
       </div>
 
-      {/* Right: settings panel */}
       <div style={{
         display: "flex",
         flexDirection: "column",
@@ -836,8 +824,8 @@ function GameSetup({ selectedGames }: { selectedGames: string[] }) {
           settingsFields={gameConfig.settingsFields}
           currentPath={gamePath}
           currentValues={gameValues}
-          onPathChange={setGamePath}
-          onValueChange={(key, value) => setGameValues({ ...gameValues, [key]: value })}
+          onPathChange={(path) => onSetupChange(activeGame, { path, values: gameValues })}
+          onValueChange={(key, value) => onSetupChange(activeGame, { path: gamePath, values: { ...gameValues, [key]: value } })}
         />
       </div>
     </div>
@@ -848,15 +836,12 @@ function NetworkStep({ setupFunction }: { setupFunction: () => void }) {
   const { status, user, error, retry } = useAuth();
   const [skipped, setSkipped] = useState(false);
 
-  // The status shown here might be a stale verdict from a check that ran silently way
-  // earlier (before the user even reached this step) — retry so they see a real, fresh
-  // connecting attempt on this screen, the same as at launcher startup.
+  // Retry so the user sees a fresh connecting attempt, not a stale earlier verdict.
   useEffect(() => {
     retry();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Once the server confirms the login, move on automatically.
   useEffect(() => {
     if (status === "authenticated" && !skipped) {
       setupFunction();
@@ -868,19 +853,19 @@ function NetworkStep({ setupFunction }: { setupFunction: () => void }) {
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
       {status === "connecting" && (
         <>
-          <h1>{user ? `Connected as ${user.displayname}` : "Connecting..."}</h1>
+          <h1>{user ? t("init.connecting_as", "Connected as {{name}}").replace("{{name}}", user.displayname) : t("init.connecting_ellipsis", "Connecting...")}</h1>
           <img src={Loading} style={{ imageRendering: "pixelated", width: "150px" }} />
         </>
       )}
       {status === "anonymous" && (
         <>
-          <h1>Sign in</h1>
+          <h1>{t("init.sign_in_title", "Sign in")}</h1>
           {error && <p style={{ color: "#ff6b6b", fontSize: "0.85rem", margin: 0 }}>{error}</p>}
           <GetUserData />
         </>
       )}
       {status === "unavailable" && (
-        <p style={{ opacity: 0.7, textAlign: "center" }}>Server unavailable — you can continue offline.</p>
+        <p style={{ opacity: 0.7, textAlign: "center" }}>{t("init.server_unavailable", "Server unavailable — you can continue offline.")}</p>
       )}
       <button
         onClick={() => { setSkipped(true); setupFunction(); }}
@@ -902,10 +887,6 @@ function FinalStep({ }: {}) {
     </>
   )
 }
-
-/* ============================================================
-   Styles
-   ============================================================ */
 
 const styles: Record<string, React.CSSProperties> = {
   buttonPrimary: {
@@ -953,10 +934,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: "bold",
   },
 };
-
-/* ============================================================
-   Translations
-   ============================================================ */
 
 const translationsLanguage = {
   title: "Welcome to NiHao",

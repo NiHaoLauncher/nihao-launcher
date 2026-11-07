@@ -2,15 +2,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum SessionTypeEnum {
-    OFFLINE, MICROSOFT, NIHAO
+    OFFLINE, MICROSOFT, NIHAO, ELYBY
 }
 impl SessionTypeEnum {
-    pub fn from_str(content: &str) -> SessionTypeEnum {
-        match content {
-            "offline"=> SessionTypeEnum::OFFLINE,
-            "microsoft" => SessionTypeEnum::MICROSOFT,
-            "nihao"=> SessionTypeEnum::NIHAO,
-            _ => panic!("Not session: {}", content),
+    /// The value of `-Dnihao.session` the NiHao Client mod reads.
+    pub fn property(&self) -> &'static str {
+        match self {
+            SessionTypeEnum::OFFLINE => "offline",
+            SessionTypeEnum::MICROSOFT => "microsoft",
+            SessionTypeEnum::NIHAO => "nihao",
+            SessionTypeEnum::ELYBY => "elyby",
         }
     }
 }
@@ -20,13 +21,13 @@ pub struct MinecraftSession {
     pub(crate) access_token: Option<String>,
     pub(crate) uuid: String,
     pub(crate) session_type: SessionTypeEnum,
+    /// The account's own token, handed to the NiHao Client mod in the `NIHAO_TOKEN` environment variable. Never sent as
+    /// the game's `--accessToken`, which the game would show to Mojang's servers.
+    pub(crate) nihao_token: Option<String>,
 }
 impl MinecraftSession {
     pub fn create(username: String, access_token: String, uuid: String) -> MinecraftSession {
-        MinecraftSession {username: username, access_token: Some(access_token), uuid:uuid, session_type: SessionTypeEnum::OFFLINE}
-    }
-    pub fn create_offline(username: String, uuid: String) -> MinecraftSession {
-        MinecraftSession {username: username, access_token: None, uuid:uuid, session_type: SessionTypeEnum::OFFLINE}
+        MinecraftSession {username: username, access_token: Some(access_token), uuid:uuid, session_type: SessionTypeEnum::OFFLINE, nihao_token: None}
     }
 }
 

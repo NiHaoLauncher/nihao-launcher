@@ -1,5 +1,4 @@
 
-// Глобальний тип для перекладів
 declare global {
   interface Window {
     __NIHAO_I18N__?: Record<string, string>;

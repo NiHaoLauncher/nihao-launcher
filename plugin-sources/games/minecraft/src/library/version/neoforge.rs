@@ -28,21 +28,24 @@ async fn ensure_installer_extracted(paths: &NeoForgePaths, version: &str) -> Res
         return Ok(());
     }
 
-    tokio::fs::create_dir_all(&paths.install_dir)
-        .await
-        .map_err(|e| e.to_string())?;
-
     let installer_url = format!(
         "https://maven.neoforged.net/releases/net/neoforged/neoforge/{v}/neoforge-{v}-installer.jar",
         v = version
     );
-    crate::library::install::download(&installer_url, paths.installer_jar.clone()).await?;
+    crate::library::install::download_maven(&installer_url, paths.installer_jar.clone()).await?;
 
     let content = tokio::fs::read(&paths.installer_jar)
         .await
         .map_err(|e| e.to_string())?;
-    zip_extract::extract(std::io::Cursor::new(content), &paths.install_dir, false)
+    // Extract beside the target and rename when done: `install_profile.json` (the "already
+    // extracted" check above) must never exist while other files are still missing.
+    let tmp_dir = paths.install_dir.with_extension("tmp");
+    let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
+    tokio::fs::create_dir_all(&tmp_dir).await.map_err(|e| e.to_string())?;
+    zip_extract::extract(std::io::Cursor::new(content), &tmp_dir, false)
         .map_err(|e| e.to_string())?;
+    let _ = tokio::fs::remove_dir_all(&paths.install_dir).await;
+    tokio::fs::rename(&tmp_dir, &paths.install_dir).await.map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -168,12 +171,11 @@ pub async fn get_launch_option(instance: &mut MinecraftInstance) -> Result<crate
         }
     }
 
-    // Unlike Fabric, NeoForge's patched client content is *not* placed on `-cp` at all.
-    // FML's own `NeoForgeClientLaunchHandler` assembles its "minecraft" module internally
-    // by resolving `net.minecraft:client::srg`, `::extra`, and `net.neoforged:neoforge:*:client`
-    // via `LibraryFinder` (driven by `-DlibraryDirectory` + the `--fml.*` args this launcher
-    // already passes) — all three are produced, at exactly those maven-layout paths, by
-    // `install::run_neoforge_processors`. `option.other_client` stays empty here.
+    // Unlike Fabric, NeoForge's patched client is not on `-cp`: FML's
+    // `NeoForgeClientLaunchHandler` assembles its "minecraft" module itself by resolving
+    // `net.minecraft:client::srg`, `::extra` and `net.neoforged:neoforge:*:client` via
+    // `LibraryFinder` (driven by `-DlibraryDirectory` and the `--fml.*` args), all produced at
+    // those paths by `install::run_neoforge_processors`. `option.other_client` stays empty.
 
     Ok(option)
 }

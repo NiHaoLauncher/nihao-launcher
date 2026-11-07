@@ -1,8 +1,5 @@
-// Client for the NiHaoLauncher server — see API.md. All calls go through the Rust
-// backend (see src-tauri/src/server_api.rs), not a browser fetch: the app's own origin
-// (http://localhost:1420 in dev, tauri://localhost in prod) is cross-origin from the
-// server's, and a plain fetch/EventSource gets blocked by CORS unless the server opts in.
-// Going through Tauri commands sidesteps that entirely — it isn't a browser request.
+// Client for the NiHaoLauncher server (DOCUMENTATION/server). Calls go through the Rust backend
+// (`server_api.rs`), which holds the one WebSocket; the webview never talks to the server.
 
 import { invoke } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
@@ -10,64 +7,143 @@ import { listen } from "@tauri-apps/api/event";
 export interface AuthUser {
   login: string;
   displayname: string;
-  role?: string;
-  /** Full URL, already resolved against the server's origin on the Rust side — see `resolve_avatar` in server_api.rs. */
   avatar?: string | null;
+  description?: string | null;
 }
 
-export interface AuthTokens {
-  session_token: string;
-  refresh_token: string;
-  user: AuthUser;
+// Credentials never reach the frontend: the Rust backend holds the refresh token.
+
+/** Emails `email` a one-time sign-in code; resolves with how many seconds it stays valid. */
+export async function requestCode(email: string): Promise<number> {
+  return invoke<number>("server_request_code", { email });
 }
 
-export async function login(loginId: string, password: string): Promise<AuthTokens> {
-  return invoke<AuthTokens>("server_login", { loginId, password });
+/** Trades the emailed code for a session. Going online is separate (`openConnectionStream`). */
+export async function verifyCode(email: string, code: string): Promise<AuthUser> {
+  return invoke<AuthUser>("server_verify_code", { email, code });
 }
 
-export async function logout(sessionToken: string): Promise<void> {
-  await invoke("server_logout", { sessionToken });
+export async function logout(): Promise<void> {
+  await invoke("server_logout");
 }
 
-export async function getSession(sessionToken: string): Promise<AuthUser> {
-  return invoke<AuthUser>("server_get_session", { sessionToken });
+/** Friendship with this profile's owner; only present on someone else's profile. */
+export type Friendship = "none" | "friends" | "request_sent" | "request_received";
+
+/** Shape of `profile.me` and `profile.get`; `online` and `friendship` come only with someone else's. */
+export interface Profile {
+  login: string;
+  displayname: string;
+  avatar?: string | null;
+  description?: string | null;
+  online?: boolean;
+  friendship?: Friendship;
 }
 
-export async function changePassword(
-  sessionToken: string,
-  currentPassword: string,
-  newPassword: string
-): Promise<void> {
-  await invoke("server_change_password", { sessionToken, currentPassword, newPassword });
+export async function getProfile(): Promise<Profile> {
+  return invoke<Profile>("server_get_profile", {});
 }
 
-/** Cheap reachability probe — see server_check_alive on the Rust side for what counts as "alive". */
+export async function getUserProfile(login: string): Promise<Profile> {
+  return invoke<Profile>("server_get_user_profile", { login });
+}
+
+export async function updateProfile(displayname: string | null,
+  description: string | null
+): Promise<AuthUser> {
+  return invoke<AuthUser>("server_update_profile", { displayname, description });
+}
+
+/** `filePath` is a local path from a file picker; returns the new avatar's URL. */
+export async function uploadAvatar(filePath: string): Promise<string> {
+  return invoke<string>("server_upload_avatar", { filePath });
+}
+
+export interface Friend {
+  login: string;
+  displayname: string;
+  avatar?: string | null;
+  online: boolean;
+}
+
+export async function getFriends(): Promise<Friend[]> {
+  return invoke<Friend[]>("server_get_friends", {});
+}
+
+export async function sendFriendRequest(login: string): Promise<void> {
+  await invoke("server_send_friend_request", { login });
+}
+
+export async function acceptFriendRequest(login: string): Promise<void> {
+  await invoke("server_accept_friend_request", { login });
+}
+
+export async function declineFriendRequest(login: string): Promise<void> {
+  await invoke("server_decline_friend_request", { login });
+}
+
+/**
+ * A pending request, `outgoing` (sent) or `incoming` (received). The server has no way to cancel
+ * an outgoing one.
+ */
+export interface FriendRequest {
+  login: string;
+  displayname: string;
+  avatar?: string | null;
+  created_at?: string | null;
+}
+
+export interface FriendRequestsResponse {
+  incoming: FriendRequest[];
+  outgoing: FriendRequest[];
+}
+
+export async function getFriendRequests(): Promise<FriendRequestsResponse> {
+  return invoke<FriendRequestsResponse>("server_get_friend_requests", {});
+}
+
+/** Cheap reachability probe (see `server_check_alive`). */
 export async function checkServerAlive(): Promise<boolean> {
   return invoke<boolean>("server_check_alive");
 }
 
 export interface StreamHandlers {
-  onAuth: (tokens: AuthTokens) => void;
+  onAuth: (user: AuthUser) => void;
+  /** The server refuses the session, this build or this version: show the sign-in form. */
   onUnauthorized: (message: string) => void;
   /** The connect request itself never got a response — the server isn't reachable at all. */
   onUnreachable: () => void;
-  /** A stream that did successfully open later ended (drained cleanly or dropped mid-session). */
+  /** A connection that did successfully open later ended (closed cleanly or dropped mid-session). */
   onClosed: () => void;
 }
 
 type ConnectionEventPayload =
-  | { kind: "Auth"; session_token: string; refresh_token: string; user: AuthUser }
+  | { kind: "Auth"; user: AuthUser }
   | { kind: "Unauthorized"; message: string }
   | { kind: "Unreachable" }
   | { kind: "Closed" };
 
 /**
- * Starts `GET /connection/stream?token=<refresh_token>` on the Rust side and relays what
- * happens back via the `connection-event` Tauri event, since the SSE body itself never
- * touches the webview. Returns a function that stops listening and tells the backend to
- * abort the stream.
+ * Handle returned by `openConnectionStream`. `detach` and `disconnect` are separate so a reconnect
+ * can't kill the connection it just opened.
  */
-export function openConnectionStream(refreshToken: string, handlers: StreamHandlers): () => void {
+export interface StreamHandle {
+  /**
+   * Stops listening locally only (no `server_disconnect_stream`). Use right before opening a
+   * replacement connection: the Rust side already aborts the old one, and a separate disconnect
+   * could race and kill the new one.
+   */
+  detach: () => void;
+  /** Stops listening AND tells the backend to actually end the connection — use this when nothing
+   *  is about to replace it (the provider unmounting). */
+  disconnect: () => void;
+}
+
+/**
+ * Opens the connection on the Rust side and relays its state through the `connection-event` Tauri
+ * event. Server pushes (`presence`, `friend.*`) arrive as the app-wide `server-event`.
+ */
+export function openConnectionStream(handlers: StreamHandlers): StreamHandle {
   let stopped = false;
 
   const unlistenPromise = listen<ConnectionEventPayload>("connection-event", (event) => {
@@ -75,11 +151,7 @@ export function openConnectionStream(refreshToken: string, handlers: StreamHandl
     const payload = event.payload;
     switch (payload.kind) {
       case "Auth":
-        handlers.onAuth({
-          session_token: payload.session_token,
-          refresh_token: payload.refresh_token,
-          user: payload.user,
-        });
+        handlers.onAuth(payload.user);
         break;
       case "Unauthorized":
         handlers.onUnauthorized(payload.message);
@@ -95,13 +167,20 @@ export function openConnectionStream(refreshToken: string, handlers: StreamHandl
 
   unlistenPromise
     .then(() => {
-      if (!stopped) invoke("server_connect_stream", { refreshToken }).catch(() => {});
+      if (!stopped) invoke("server_connect_stream").catch(() => {});
     })
     .catch((e) => console.error("Failed to listen for connection events:", e));
 
-  return () => {
+  const detach = () => {
     stopped = true;
     unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
-    invoke("server_disconnect_stream").catch(() => {});
+  };
+
+  return {
+    detach,
+    disconnect: () => {
+      detach();
+      invoke("server_disconnect_stream").catch(() => {});
+    },
   };
 }

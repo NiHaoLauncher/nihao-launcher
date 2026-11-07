@@ -1,0 +1,94 @@
+/*
+ * Built-in startup screen: a planet with a moon; the outer ring is the progress. Zero specificity
+ * apart from the element rule that must out-rank the global `main` frame. No title text on purpose
+ * (the status goes to aria-label). Motion is off under html[data-animations="off"].
+ */
+main.simple-loading {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  justify-content: center;
+  align-items: center;
+  background:
+    radial-gradient(900px 600px at 78% -8%, color-mix(in srgb, var(--main-color) 17%, transparent), transparent 70%),
+    var(--main-background-color);
+}
+
+:where(main.simple-loading)::before,
+:where(main.simple-loading)::after {
+  content: "";
+  position: absolute;
+  inset: -200px 0 0 0;
+  pointer-events: none;
+  animation: simple-loading-drift 120s linear infinite;
+}
+:where(main.simple-loading)::before {
+  background-size: 600px 400px;
+  background-image:
+    radial-gradient(1px 1px at 40px 60px, color-mix(in srgb, var(--nh-fg) 50%, transparent), transparent),
+    radial-gradient(1px 1px at 170px 210px, color-mix(in srgb, var(--nh-fg) 35%, transparent), transparent),
+    radial-gradient(1.5px 1.5px at 290px 120px, color-mix(in srgb, var(--nh-fg) 55%, transparent), transparent),
+    radial-gradient(1px 1px at 410px 330px, color-mix(in srgb, var(--nh-fg) 30%, transparent), transparent),
+    radial-gradient(1px 1px at 520px 40px, color-mix(in srgb, var(--nh-fg) 40%, transparent), transparent);
+}
+:where(main.simple-loading)::after {
+  background-size: 520px 360px;
+  animation-duration: 200s;
+  background-image:
+    radial-gradient(1.5px 1.5px at 90px 280px, color-mix(in srgb, var(--nh-fg) 45%, transparent), transparent),
+    radial-gradient(1px 1px at 330px 30px, color-mix(in srgb, var(--nh-fg) 30%, transparent), transparent),
+    radial-gradient(1px 1px at 480px 250px, color-mix(in srgb, var(--nh-fg) 40%, transparent), transparent);
+}
+@keyframes simple-loading-drift { to { transform: translateY(400px); } }
+
+:where(.simple-loading-box) {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  color: var(--text-color);
+}
+
+:where(.simple-orbit) { width: 200px; height: 200px; overflow: visible; }
+:where(.simple-orbit circle) { fill: none; stroke-width: 1.2; }
+:where(.simple-orbit-track) { stroke: color-mix(in srgb, var(--nh-fg) 14%, transparent); }
+:where(.simple-orbit-path) { stroke: color-mix(in srgb, var(--nh-fg) 22%, transparent); }
+
+:where(.simple-orbit-arc) {
+  stroke: var(--main-second-color);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 100px 100px;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--main-second-color) 70%, transparent));
+  transition: stroke-dasharray 0.3s ease;
+}
+:where(.simple-orbit.indeterminate .simple-orbit-arc) {
+  stroke-dasharray: 160 578;
+  animation: simple-orbit-spin 1.8s linear infinite;
+}
+@keyframes simple-orbit-spin { to { transform: rotate(270deg); } }
+
+:where(.simple-orbit-planet) {
+  fill: var(--main-color);
+  stroke: none;
+  transform-origin: 100px 100px;
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--main-color) 60%, transparent));
+  animation: simple-orbit-breathe 4s ease-in-out infinite;
+}
+@keyframes simple-orbit-breathe { 50% { transform: scale(1.07); } }
+
+:where(.simple-orbit-moon) { transform-origin: 100px 100px; animation: simple-orbit-around 4s linear infinite; }
+:where(.simple-orbit-moon circle) { fill: var(--nh-fg); stroke: none; filter: drop-shadow(0 0 5px var(--nh-fg)); }
+@keyframes simple-orbit-around { to { transform: rotate(360deg); } }
+
+:where(.simple-loading-skip) {
+  padding: 4px 10px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--main-second-color);
+  text-decoration: underline;
+  cursor: pointer;
+}

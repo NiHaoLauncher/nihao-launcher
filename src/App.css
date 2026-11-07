@@ -19,6 +19,10 @@
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
 }
+/* Every scrollbar of the launcher (and of the modules' UI); zero specificity so a theme can restyle it. */
+:where(*)::-webkit-scrollbar { width: 6px; height: 6px; }
+:where(*)::-webkit-scrollbar-thumb { background-color: var(--main-color); border-radius: 3px; }
+:where(*)::-webkit-scrollbar-track { background-color: transparent; }
 :root {
   --indent-distance: 5px;
   --border-radius: 12px;
@@ -30,10 +34,28 @@
   --modal-background-color: #191919;
   --mainbar-background-color: #202020;
   --hr-color: rgba(255, 255, 255, 0.5);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --control-background-color: rgba(255, 255, 255, 0.05);
 
   --text-color: white;
   --text-disabled-color: #666;
   --text-secondary-color: #666;
+
+  /*
+   * Fallback theme tokens (the built-in "Simple" theme in CSS form); a theme overrides them via
+   * `applyTheme`, so the launcher is never unstyled if one fails.
+   */
+  --nh-ok: #3fb950;
+  --nh-warn: #e3b341;
+  --nh-danger: #ff6b6b;
+  --nh-danger-strong: #dc3545;
+  --nh-fg: #ffffff;
+  --nh-shade: #000000;
+  --nh-radius-modal: 12px;
+  --nh-radius-panel: 6px;
+  --nh-radius-card: 10px;
+  --nh-radius-control: 6px;
+  --nh-font-mono: Consolas, "Courier New", monospace;
 
   --actions-banner-background: linear-gradient(180deg, rgba(74, 144, 217, 0.32), rgba(32, 32, 32, 0.55));
 }
@@ -70,8 +92,8 @@ h1 {
   text-align: center;
 }
 
-input,
-button {
+/* Zero specificity (:where), so any component rule overrides these form-control defaults. */
+:where(input, button) {
   border-radius: 8px;
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
@@ -80,24 +102,22 @@ button {
   font-family: inherit;
   color: #0f0f0f;
   background-color: #ffffff;
-  transition: border-color 0.25s;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
 }
 
-button {
+:where(button) {
   cursor: pointer;
 }
 
-button:hover {
+:where(button:hover) {
   border-color: #396cd8;
 }
-button:active {
+:where(button:active) {
   border-color: #396cd8;
   background-color: #e8e8e8;
 }
 
-input,
-button {
+:where(input, button) {
   outline: none;
 }
 
@@ -112,13 +132,164 @@ button {
     color: #24c8db;
   }
 
-  input,
-  button {
+  :where(input, button) {
     color: #ffffff;
     background-color: #0f0f0f98;
   }
-  button:active {
+  :where(button:active) {
     background-color: #0f0f0f69;
   }
 }
 
+/*
+ * Icons in buttons pop on hover and squeeze when pressed. An icon picks a flavour with a class on
+ * its root <svg> (icon-spin, icon-shake, icon-nudge-x, icon-nudge-down).
+ */
+:where(button) > svg {
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+:where(button:not(:disabled):hover) > svg { transform: scale(1.16); }
+:where(button:not(:disabled):hover) > svg.icon-spin { transform: rotate(120deg) scale(1.1); }
+:where(button:not(:disabled):hover) > svg.icon-nudge-x { transform: translateX(3px) scale(1.08); }
+:where(button:not(:disabled):hover) > svg.icon-nudge-down { transform: translateY(2px) scale(1.08); }
+:where(button:not(:disabled):hover) > svg.icon-shake { animation: icon-shake 0.4s ease-in-out; }
+:where(button:not(:disabled):active) > svg,
+:where(button:not(:disabled):active) > svg[class] { transform: scale(0.84); animation: none; }
+@keyframes icon-shake {
+  0%, 100% { transform: rotate(0) scale(1.12); }
+  20% { transform: rotate(-14deg) scale(1.12); }
+  40% { transform: rotate(12deg) scale(1.12); }
+  60% { transform: rotate(-8deg) scale(1.12); }
+  80% { transform: rotate(5deg) scale(1.12); }
+}
+
+/*
+ * "Interface animations" off: nothing moves; elements that exist only to animate are hidden.
+ * Settings hover-hint demos are exempt.
+ */
+html[data-animations="off"] :not(.hover-hint, .hover-hint *),
+html[data-animations="off"] :not(.hover-hint, .hover-hint *)::before,
+html[data-animations="off"] :not(.hover-hint, .hover-hint *)::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+/*
+ * Per-icon motion: the icon's root class (i-trash, i-folder, ...) and parts marked `ip` animate
+ * while a button or settings row is hovered. Off with "Interface animations".
+ */
+svg .ip {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+svg .trash-lid { transform-origin: 0% 100%; }
+:where(button:not(:disabled), .settings-field):hover svg .trash-lid { transform: translate(-1px, -1.5px) rotate(-26deg); }
+:where(button:not(:disabled)):active svg .trash-lid { transform: translate(-0.5px, -0.5px) rotate(-8deg); }
+
+svg .folder-front, svg .folder-back { transform-origin: 50% 100%; }
+:where(button:not(:disabled), .settings-field):hover svg .folder-front { transform: skewX(-10deg) scaleY(0.82); }
+:where(button:not(:disabled), .settings-field):hover svg .folder-back { transform: translateY(-1px) scaleY(1.1); }
+:where(button:not(:disabled)):active svg .folder-front { transform: skewX(-14deg) scaleY(0.74); }
+
+svg .share-l1, svg .share-l2 { stroke-dasharray: 9; }
+:where(button:not(:disabled), .settings-field):hover svg .share-n1 { transform: translate(1.4px, -1.4px); }
+:where(button:not(:disabled), .settings-field):hover svg .share-n2 { transform: translate(-1.4px, 0); }
+:where(button:not(:disabled), .settings-field):hover svg .share-n3 { transform: translate(1.4px, 1.4px); }
+:where(button:not(:disabled), .settings-field):hover svg .share-l1,
+:where(button:not(:disabled), .settings-field):hover svg .share-l2 { animation: icon-draw 0.5s ease-out; }
+:where(button:not(:disabled)):active svg :is(.share-n1, .share-n2, .share-n3) { transform: none; }
+
+:where(button:not(:disabled), .settings-field):hover svg .globe-meridian { animation: icon-turn 0.8s ease-in-out; }
+
+svg .eye-slash { stroke-dasharray: 26; }
+:where(button:not(:disabled), .settings-field):hover svg .eye-lid { animation: icon-blink 0.45s ease-in-out; }
+:where(button:not(:disabled), .settings-field):hover svg .eye-slash { animation: icon-draw-long 0.5s ease-out; }
+
+:where(button:not(:disabled), .settings-field):hover svg .discord-all { animation: icon-wobble 0.55s ease-in-out; }
+
+:where(button:not(:disabled), .settings-field):hover svg .motion-a { transform: rotate(90deg) scale(1.12); }
+:where(button:not(:disabled), .settings-field):hover svg .motion-b { transform: rotate(-90deg) scale(1.5); }
+
+:where(button:not(:disabled), .settings-field):hover svg .sliders-a { transform: translateX(-6px); }
+:where(button:not(:disabled), .settings-field):hover svg .sliders-b { transform: translateX(8px); }
+
+:where(button:not(:disabled), .settings-field):hover svg .pad-all { transform: scale(1.12) rotate(-6deg); }
+:where(button:not(:disabled), .settings-field):hover svg .pad-b1 { transform: translateY(1px) scale(0.8); }
+:where(button:not(:disabled), .settings-field):hover svg .pad-b2 { transform: translateY(-1px) scale(0.8); }
+
+:where(button:not(:disabled), .settings-field):hover svg .cloud-all { animation: icon-float 0.7s ease-in-out; }
+
+:where(button:not(:disabled), .settings-field):hover svg .pal-d1,
+:where(button:not(:disabled), .settings-field):hover svg .pal-d2,
+:where(button:not(:disabled), .settings-field):hover svg .pal-d3 { animation: icon-dot 0.5s ease-in-out; }
+svg .pal-d2 { animation-delay: 0.08s !important; }
+svg .pal-d3 { animation-delay: 0.16s !important; }
+
+:where(button:not(:disabled), .settings-field):hover svg .user-head { transform: translateY(-1.2px) scale(1.12); }
+
+svg .clock-hour, svg .clock-min { transform-box: view-box; transform-origin: 12px 12px; }
+:where(button:not(:disabled), .settings-field, .pt-card):hover svg .clock-min { animation: icon-around 0.9s ease-in-out; }
+:where(button:not(:disabled), .settings-field, .pt-card):hover svg .clock-hour { animation: icon-around 2.4s ease-in-out; }
+svg .pad-all { transform-origin: center; }
+:where(.pt-card):hover svg .term-prompt { transform: translateX(1.2px); }
+:where(.pt-card):hover svg .term-cursor { animation: icon-cursor 0.7s steps(1, end) 2; }
+:where(.pt-card):hover svg .cube-top { transform: translateY(-2px); }
+:where(.pt-card):hover svg .cube-l { transform: translateX(-1.4px); }
+:where(.pt-card):hover svg .cube-r { transform: translateX(1.4px); }
+:where(.pt-card):hover svg .globe-meridian { animation: icon-turn 0.8s ease-in-out; }
+
+svg .orbit-moon { transform-box: view-box; transform-origin: 12px 12px; }
+:where(button:not(:disabled), .settings-field):hover svg .orbit-moon { animation: icon-around 0.9s linear; }
+
+:where(.settings-field) svg { transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+:where(button:not(:disabled), .settings-field):hover svg .gear-all { transform: rotate(120deg) scale(1.1); }
+
+:where(button:not(:disabled), .settings-field):hover svg .refresh-all { animation: icon-rotate 0.9s ease-in-out; }
+
+:where(button:not(:disabled), .settings-field):hover svg .link-all { transform: translate(1.6px, -1.6px) scale(1.06); }
+
+:where(button:not(:disabled), .settings-field):hover svg .copy-front { transform: translate(1.3px, 1.3px); }
+:where(button:not(:disabled), .settings-field):hover svg .copy-back { transform: translate(-1.3px, -1.3px); }
+
+svg .check-mark { stroke-dasharray: 20; }
+:where(button:not(:disabled), .settings-field):hover svg .check-mark { animation: icon-draw-check 0.45s ease-out; }
+
+:where(button:not(:disabled), .settings-field):hover svg .warn-mark { animation: icon-wobble 0.5s ease-in-out; }
+
+:where(button:not(:disabled), .settings-field):hover svg .power-line { transform: translateY(-1.6px); }
+
+:where(button:not(:disabled), .settings-field, .variant):hover svg .cube-top { transform: translateY(-2px); }
+:where(button:not(:disabled), .settings-field, .variant):hover svg .cube-l { transform: translateX(-1.4px); }
+:where(button:not(:disabled), .settings-field, .variant):hover svg .cube-r { transform: translateX(1.4px); }
+
+:where(button:not(:disabled), .settings-field, .variant):hover svg .zip-pull { animation: icon-zip 0.8s ease-in-out; }
+
+:where(button:not(:disabled), .settings-field, .variant):hover svg .search-lens { animation: icon-scan 0.8s ease-in-out; }
+
+:where(button:not(:disabled), .settings-field):hover svg .layers-top { transform: translateY(-2px); }
+:where(button:not(:disabled), .settings-field):hover svg .layers-mid { transform: translateY(-0.8px); }
+
+:where(button:not(:disabled), .settings-field):hover svg .term-prompt { transform: translateX(1.2px); }
+:where(button:not(:disabled), .settings-field):hover svg .term-cursor { animation: icon-cursor 0.7s steps(1, end) 2; }
+
+:where(button:not(:disabled), .settings-field):hover svg .file-fold { transform: translate(0.9px, -0.9px) scale(1.12); }
+
+:where(button:not(:disabled), .settings-field):hover svg .pp-plus { transform: rotate(90deg) scale(1.2); }
+
+@keyframes icon-rotate { to { transform: rotate(360deg); } }
+@keyframes icon-draw-check { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
+@keyframes icon-zip { 0%, 100% { transform: none; } 45% { transform: translateY(-8px); } 55% { transform: translateY(-8px); } }
+@keyframes icon-scan { 0%, 100% { transform: none; } 25% { transform: translate(-1.2px, -1.2px); } 50% { transform: translate(1.2px, -1px); } 75% { transform: translate(0, 1.2px); } }
+@keyframes icon-cursor { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes icon-draw { from { stroke-dashoffset: 9; } to { stroke-dashoffset: 0; } }
+@keyframes icon-draw-long { from { stroke-dashoffset: 26; } to { stroke-dashoffset: 0; } }
+@keyframes icon-turn { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(0.1); } }
+@keyframes icon-blink { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.15); } }
+@keyframes icon-wobble { 0%, 100% { transform: rotate(0) scale(1.1); } 25% { transform: rotate(-12deg) scale(1.1); } 55% { transform: rotate(9deg) scale(1.1); } 80% { transform: rotate(-4deg) scale(1.1); } }
+@keyframes icon-float { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-2.5px) scale(1.1); } }
+@keyframes icon-dot { 0%, 100% { transform: scale(1); } 50% { transform: scale(2); } }
+@keyframes icon-around { to { transform: rotate(360deg); } }

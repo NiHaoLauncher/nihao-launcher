@@ -1,12 +1,7 @@
-//! Parses a mod jar's own metadata (display name, version, icon) for the Content Manager.
-//! Tries, in order:
-//! - Fabric's `fabric.mod.json` (JSON at the jar root)
-//! - Forge/NeoForge's `META-INF/mods.toml` (TOML)
-//! - The legacy pre-Forge-1.13 `mcmod.info` (a JSON array)
-//!
-//! A jar built for one loader occasionally still carries another's metadata file too (e.g. a
-//! Fabric-API compatibility jar bundled into a NeoForge pack), so all three are worth trying
-//! rather than picking one based on the instance's own loader.
+//! Parses a mod jar's own metadata (name, version, icon) for the Content Manager, trying in order:
+//! Fabric's `fabric.mod.json`, Forge/NeoForge's `META-INF/mods.toml`, and legacy pre-1.13
+//! `mcmod.info`. A jar built for one loader may carry another's file too (e.g. a Fabric-API compat
+//! jar in a NeoForge pack), so all three are tried.
 
 use std::io::Read;
 use std::path::Path;
@@ -17,15 +12,12 @@ use zip::ZipArchive;
 pub struct ModMetadata {
     pub name: Option<String>,
     pub version: Option<String>,
-    /// Base64 data URI — same convention as `interface.rs`'s `image_data_uri` for
-    /// icon/banner, so the frontend can use it directly in an `<img src>`.
+    /// Base64 data URI (same as `image_data_uri` in interface.rs), usable directly in `<img src>`.
     pub icon_data: Option<String>,
 }
 
-/// Zip entry names are matched exactly by `by_name` per the zip spec, but plenty of real mod
-/// jars reference their own icon with different casing than the entry actually has (e.g.
-/// `Icon.png` in fabric.mod.json vs. an `icon.png` entry) — falls back to a case-insensitive
-/// scan when the exact name isn't found, rather than silently treating that as "no icon".
+/// Real jars often reference their icon with different casing than the zip entry (`Icon.png` vs
+/// `icon.png`), so fall back to a case-insensitive scan instead of treating it as "no icon".
 fn find_entry_name(zip: &mut ZipArchive<std::fs::File>, name: &str) -> Option<String> {
     if zip.by_name(name).is_ok() {
         return Some(name.to_string());
@@ -36,11 +28,17 @@ fn find_entry_name(zip: &mut ZipArchive<std::fs::File>, name: &str) -> Option<St
         .find(|n| n.to_lowercase() == target)
 }
 
+/// Largest single jar entry read for metadata (JSON): a "zip bomb" entry can't fill RAM.
+const MAX_ENTRY_BYTES: u64 = 8 * 1024 * 1024;
+/// Largest icon taken. Every icon goes into the content list and `cache.nihao` as base64, so a
+/// pack of a few hundred mods with 8 MB logos would make both enormous; a real mod icon is a few KB.
+const MAX_ICON_BYTES: u64 = 256 * 1024;
+
 fn read_zip_text(zip: &mut ZipArchive<std::fs::File>, name: &str) -> Option<String> {
     let resolved = find_entry_name(zip, name)?;
     let mut entry = zip.by_name(&resolved).ok()?;
     let mut content = String::new();
-    entry.read_to_string(&mut content).ok()?;
+    (&mut entry).take(MAX_ENTRY_BYTES).read_to_string(&mut content).ok()?;
     Some(content)
 }
 
@@ -48,8 +46,9 @@ fn read_zip_bytes(zip: &mut ZipArchive<std::fs::File>, name: &str) -> Option<Vec
     let resolved = find_entry_name(zip, name)?;
     let mut entry = zip.by_name(&resolved).ok()?;
     let mut bytes = Vec::new();
-    entry.read_to_end(&mut bytes).ok()?;
-    Some(bytes)
+    // One byte over the limit tells "too big" from "just fits": a cut-off picture would be corrupt.
+    (&mut entry).take(MAX_ICON_BYTES + 1).read_to_end(&mut bytes).ok()?;
+    (bytes.len() as u64 <= MAX_ICON_BYTES).then_some(bytes)
 }
 
 pub(crate) fn to_data_uri(bytes: &[u8]) -> String {
@@ -65,8 +64,8 @@ struct FabricModJson {
     icon: Option<serde_json::Value>,
 }
 
-/// Fabric's `icon` field is either a plain path string, or (newer schema) an object mapping
-/// resolution to path (`{"16x16": "...", "32x32": "..."}`) — any one of those is fine here.
+/// Fabric's `icon` is a path string or (newer schema) an object mapping resolution to path; any
+/// entry works.
 fn fabric_icon_path(icon: &serde_json::Value) -> Option<String> {
     match icon {
         serde_json::Value::String(s) => Some(s.clone()),
@@ -98,10 +97,9 @@ struct McModInfoEntry {
     logo_file: Option<String>,
 }
 
-/// Reads `META-INF/MANIFEST.MF`'s `Implementation-Version` — for mods.toml's `version` field
-/// left as the literal, unresolved `${file.jarVersion}` placeholder (ForgeGradle substitutes
-/// that at build time from the jar's own manifest; a jar built without that step keeps it
-/// literal, which would otherwise show up verbatim as the "version" in the UI).
+/// Reads `Implementation-Version` from `META-INF/MANIFEST.MF`, for mods.toml `version` fields left
+/// as the literal `${file.jarVersion}` placeholder (ForgeGradle fills it from the jar manifest at
+/// build time).
 fn manifest_implementation_version(zip: &mut ZipArchive<std::fs::File>) -> Option<String> {
     let content = read_zip_text(zip, "META-INF/MANIFEST.MF")?;
     for line in content.lines() {
@@ -187,9 +185,8 @@ struct PackMcMetaInner {
     description: Option<serde_json::Value>,
 }
 
-/// `pack.mcmeta`'s `description` is either a plain string (possibly with legacy `§`-color
-/// codes) or a Minecraft text component (an object with a `text` field, or an array of them,
-/// per the modern format) — flattens either shape down to plain text.
+/// `pack.mcmeta`'s `description` is a plain string (maybe with legacy `§` colour codes) or a text
+/// component (object with `text`, or an array); flattens either to plain text.
 fn description_to_text(desc: &serde_json::Value) -> Option<String> {
     fn strip_color_codes(s: &str) -> String {
         let mut out = String::with_capacity(s.len());
@@ -222,11 +219,9 @@ fn description_to_text(desc: &serde_json::Value) -> Option<String> {
     }
 }
 
-/// Resourcepack/datapack metadata — `pack.mcmeta`'s `description` (used as the display "name",
-/// there being no dedicated name field in the format) and `pack.png` (resourcepacks only in
-/// practice; datapacks don't usually ship one, but nothing stops it). Never carries a version —
-/// nothing in the format has one; a Modrinth match can still fill that in separately.
-/// `is_dir` picks between reading a real directory (an unpacked pack) or a zip file.
+/// Resourcepack/datapack metadata: `pack.mcmeta`'s `description` (used as the display name, as the
+/// format has no name field) and `pack.png`. Never a version (a Modrinth match can supply it).
+/// `is_dir` picks between an unpacked directory and a zip.
 pub fn read_pack_metadata(path: &Path, is_dir: bool) -> ModMetadata {
     if is_dir {
         read_pack_metadata_dir(path)
@@ -242,8 +237,11 @@ fn read_pack_metadata_dir(dir: &Path) -> ModMetadata {
             result.name = meta.pack.description.as_ref().and_then(description_to_text);
         }
     }
-    if let Ok(bytes) = std::fs::read(dir.join("pack.png")) {
-        result.icon_data = Some(to_data_uri(&bytes));
+    let icon = dir.join("pack.png");
+    if std::fs::metadata(&icon).is_ok_and(|m| m.len() <= MAX_ICON_BYTES) {
+        if let Ok(bytes) = std::fs::read(&icon) {
+            result.icon_data = Some(to_data_uri(&bytes));
+        }
     }
     result
 }

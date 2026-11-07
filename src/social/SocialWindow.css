@@ -1,0 +1,20 @@
+html, body, #app { height: 100%; }
+
+.social-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: var(--text-color);
+  background-color: var(--main-background-color);
+}
+
+.social-window-note {
+  margin: auto;
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary-color);
+}
+
+.social-window-error { display: block; margin-top: 8px; font-size: 0.75rem; opacity: 0.7; }

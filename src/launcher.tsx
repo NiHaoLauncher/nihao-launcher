@@ -9,17 +9,17 @@ export function ConnectPage() {
   return
 }
 
-/** What a plugin's (optional) `get_home_preview` returns — shown in the hover flyout below its
- *  name, as a count ("Modpacks: 3"), not the item names themselves. `label` describes what
- *  `items` is a list of (e.g. "Modpacks", "Servers") so the host can render it without knowing
- *  anything game-specific. A plugin that doesn't implement this command just gets skipped —
- *  the flyout still shows its name/banner on hover either way. */
+/**
+ * Result of a plugin's optional `get_home_preview`, shown in the hover flyout as a count
+ * ("Modpacks: 3"). `label` names what `items` lists. A plugin without the command is skipped.
+ */
 interface HomePreview {
   label?: string;
   items?: string[];
 }
 
-export function HomePage() {
+/** Every installed game/module as a tile. */
+export function LibraryPage() {
   const navigate = useNavigate();
   const { localClient } = useClient();
   const [modules, setModules] = useState<string[]>([]);
@@ -41,8 +41,7 @@ export function HomePage() {
     return () => { cancelled = true; };
   }, [modules]);
 
-  // Fetched lazily on first hover (not for every tile up front) and cached — most sessions
-  // only ever hover a couple of tiles, no need to call every module's preview eagerly.
+  // Fetched lazily on first hover and cached; most sessions hover only a few tiles.
   function handleHover(mod: string) {
     setHovered(mod);
     if (previews[mod] !== undefined) return;
@@ -50,7 +49,6 @@ export function HomePage() {
     if (!path) return;
     invoke("call_module", { module: mod, method: "get_home_preview", args: { path } })
       .then((res: any) => setPreviews((prev) => ({ ...prev, [mod]: res ?? null })))
-      // Plugin doesn't implement get_home_preview — that's fine, just nothing extra to show.
       .catch(() => setPreviews((prev) => ({ ...prev, [mod]: null })));
   }
 

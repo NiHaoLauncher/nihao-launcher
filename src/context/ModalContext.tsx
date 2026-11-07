@@ -1,22 +1,27 @@
 import { createContext, useContext, useState, useCallback, useRef, ReactNode } from "react";
-import { Modal, ConfirmModal } from "@shared";
+import { Modal, ConfirmModal, modalCloseMs, animationsOff } from "@shared";
+import { useLocalization } from "../state/Localization";
 
-// ── Confirm ──────────────────────────────────────────────
 interface ConfirmOptions {
   message: string;
   confirmText?: string;
   cancelText?: string;
   variant?: "primary" | "danger";
+  icon?: ReactNode | null;
+  confirmIcon?: ReactNode | null;
 }
 
 type ConfirmResolver = (result: boolean) => void;
 
-// ── Generic Modal ────────────────────────────────────────
 interface OpenModalOptions {
   title: string;
   content: ReactNode;
   footer?: ReactNode;
+  /** Left-hand command-line text of the footer (see `Modal`). */
+  footerHint?: ReactNode;
   size?: "small" | "medium" | "large" | "full";
+  /** Fixed height (px, or a CSS length string) instead of following the content — see `Modal`. */
+  height?: "auto" | number | string;
   layout?: "default" | "categories";
   categories?: { id: string | number; label: string; icon?: React.ReactNode }[];
   activeCategory?: string | number;
@@ -24,30 +29,51 @@ interface OpenModalOptions {
   showCloseButton?: boolean;
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
-  /** Called right before the modal is dismissed (X, Escape, backdrop click). */
+  /** Called right before the modal is dismissed (X, Escape, backdrop click, or `closeModal()`). */
   onClose?: () => void;
+  /**
+   * Reuses an already-open modal with this id instead of stacking a new one (e.g. Settings
+   * updating its single modal on tab change). Omit it, or pass a fresh id, to open an independent
+   * modal that layers on top.
+   */
+  id?: string;
+}
+
+interface ModalEntry extends OpenModalOptions {
+  id: string;
+  /** Set while the modal plays its close animation, just before it is removed. */
+  closing?: boolean;
 }
 
 interface ModalContextType {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
-  openModal: (options: OpenModalOptions) => void;
-  closeModal: () => void;
+  /**
+   * Returns the modal's id (also when none was passed), so it can be closed later with
+   * `closeModal(id)`.
+   */
+  openModal: (options: OpenModalOptions) => string;
+  /** Closes the modal matching `id`, or the topmost one when omitted. No-op if none is open. */
+  closeModal: (id?: string) => void;
 }
 
 const ModalContext = createContext<ModalContextType | null>(null);
 
+let nextModalId = 0;
+
 export function ModalProvider({ children }: { children: ReactNode }) {
-  // Confirm state
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmOptions, setConfirmOptions] = useState<ConfirmOptions>({ message: "" });
   const [, setConfirmResolver] = useState<ConfirmResolver | null>(null);
 
-  // Generic modal state
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalOptions, setModalOptions] = useState<OpenModalOptions>({ title: "", content: null });
-  const onCloseRef = useRef<(() => void) | undefined>(undefined);
+  // A real stack: several modals can be open at once. `modalsRef` mirrors `modals` so the
+  // deps-free `closeModal` always reads the current stack.
+  const [modals, setModals] = useState<ModalEntry[]>([]);
+  // Open modals hold the `content` created when they opened, which React won't re-render, so
+  // depend on the language revision to refresh their text.
+  const languageRevision = useLocalization((s) => s.revision);
+  const modalsRef = useRef<ModalEntry[]>([]);
+  modalsRef.current = modals;
 
-  // ── Confirm API ──────────────────────────────────────
   const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
     setConfirmOptions(options);
     setConfirmOpen(true);
@@ -64,25 +90,64 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // ── Generic Modal API ────────────────────────────────
-  const openModal = useCallback((options: OpenModalOptions) => {
-    onCloseRef.current = options.onClose;
-    setModalOptions(options);
-    setModalOpen(true);
+  const openModal = useCallback((options: OpenModalOptions): string => {
+    const id = options.id ?? `modal-${nextModalId++}`;
+    const entry: ModalEntry = { ...options, id };
+    setModals((prev) => {
+      const exists = prev.some((m) => m.id === id);
+      return exists ? prev.map((m) => (m.id === id ? entry : m)) : [...prev, entry];
+    });
+    return id;
   }, []);
 
-  const closeModal = useCallback(() => {
-    setModalOpen(false);
-    setModalOptions({ title: "", content: null });
-    onCloseRef.current?.();
-    onCloseRef.current = undefined;
+  const closeModal = useCallback((id?: string) => {
+    const current = modalsRef.current.filter((m) => !m.closing);
+    if (current.length === 0) return;
+    const targetId = id ?? current[current.length - 1].id;
+    const target = current.find((m) => m.id === targetId);
+    if (!target) return;
+    target.onClose?.();
+    setModals((prev) => prev.map((m) => (m.id === targetId ? { ...m, closing: true } : m)));
+    setTimeout(
+      () => setModals((prev) => prev.filter((m) => m.id !== targetId || !m.closing)),
+      animationsOff() ? 0 : modalCloseMs(),
+    );
   }, []);
 
   return (
     <ModalContext.Provider value={{ confirm, openModal, closeModal }}>
       {children}
 
-      {/* Confirm modal */}
+      {/*
+       * Rendered in open order so a later (stacked) modal paints on top; `Modal` only dismisses
+       * the topmost.
+       */}
+      {modals.map((m) => (
+        <Modal
+          key={`${m.id}:${languageRevision}`}
+          isOpen={!m.closing}
+          onClose={() => closeModal(m.id)}
+          title={m.title}
+          size={m.size}
+          height={m.height}
+          layout={m.layout}
+          categories={m.categories}
+          activeCategory={m.activeCategory}
+          onCategoryChange={m.onCategoryChange}
+          showCloseButton={m.showCloseButton}
+          closeOnBackdrop={m.closeOnBackdrop}
+          closeOnEscape={m.closeOnEscape}
+          footer={m.footer}
+          footerHint={m.footerHint}
+        >
+          {m.content}
+        </Modal>
+      ))}
+
+      {/*
+       * After the generic ones: it is often opened from inside one, and a later overlay paints
+       * above an earlier one.
+       */}
       <ConfirmModal
         isOpen={confirmOpen}
         onConfirm={() => handleConfirmClose(true)}
@@ -91,25 +156,9 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         confirmText={confirmOptions.confirmText}
         cancelText={confirmOptions.cancelText}
         variant={confirmOptions.variant}
+        icon={confirmOptions.icon}
+        confirmIcon={confirmOptions.confirmIcon}
       />
-
-      {/* Generic modal */}
-      <Modal
-        isOpen={modalOpen}
-        onClose={closeModal}
-        title={modalOptions.title}
-        size={modalOptions.size}
-        layout={modalOptions.layout}
-        categories={modalOptions.categories}
-        activeCategory={modalOptions.activeCategory}
-        onCategoryChange={modalOptions.onCategoryChange}
-        showCloseButton={modalOptions.showCloseButton}
-        closeOnBackdrop={modalOptions.closeOnBackdrop}
-        closeOnEscape={modalOptions.closeOnEscape}
-        footer={modalOptions.footer}
-      >
-        {modalOptions.content}
-      </Modal>
     </ModalContext.Provider>
   );
 }

@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use tokio::{fs, io::AsyncWriteExt};
@@ -50,12 +50,10 @@ pub struct MinecraftInstanceJavaVersion {
 }
 pub static LAUNCH_FILE_NAME: &'static str = "launch.nihao";
 impl MinecraftInstanceOption {
-    /// Loaders like Fabric/NeoForge layer their own `libraries` on top of vanilla's own
-    /// list, and modded loaders' lists often re-list shared dependencies (e.g. gson) that
-    /// are already in vanilla's — same resolved classpath entry twice. Most loaders
-    /// tolerate a duplicate `-cp` entry, but NeoForge's BootstrapLauncher builds a
-    /// `UnionFileSystem` keyed by path and hard-errors ("Duplicate key ...") if the same
-    /// jar shows up more than once, so this needs to run before building the classpath.
+    /// Loaders layer their `libraries` on top of vanilla's and often re-list shared dependencies
+    /// (e.g. gson). Most tolerate a duplicate `-cp` entry, but NeoForge's BootstrapLauncher builds
+    /// a `UnionFileSystem` keyed by path and hard-errors on a duplicate jar, so dedupe before
+    /// building the classpath.
     pub fn dedupe_libraries(&mut self) {
         let mut seen = std::collections::HashSet::new();
         self.libraries.retain(|lib| seen.insert(lib.path.clone()));
@@ -79,12 +77,10 @@ impl MinecraftInstanceOption {
             };
             result.push_str(&format!("{};", path_parent.join(other_client.path.unwrap()).display()));
         };
-        // NeoForge doesn't need the raw vanilla jar on `-cp` at all: FML's own
-        // NeoForgeClientLaunchHandler assembles its "minecraft" module internally out of
-        // maven-located libraries (srg/extra/neoforge-client, all produced by
-        // `install::run_neoforge_processors`), resolved via `-DlibraryDirectory` + the
-        // `--fml.*` args — not from anything on the classpath. Putting the untouched vanilla
-        // jar on `-cp` too would just duplicate `net.minecraft.*` packages for no benefit.
+        // NeoForge needs no raw vanilla jar on `-cp`: FML's `NeoForgeClientLaunchHandler`
+        // assembles its "minecraft" module from maven-located libraries (srg/extra/neoforge-client
+        // from `install::run_neoforge_processors`) via `-DlibraryDirectory` and `--fml.*`; adding
+        // the vanilla jar would duplicate `net.minecraft.*` packages.
         if instance.version.core != MinecraftLoader::NEOFORGE {
             result.push_str(&instance.get_jar_path().display().to_string());
         }
@@ -99,15 +95,6 @@ impl MinecraftInstanceOption {
             return Err(format!("Not find '{}'!",LAUNCH_FILE_NAME));
         }
     }
-    pub fn load_is_version(path:PathBuf) -> Result<MinecraftInstanceOption, String> {
-        if !path.is_dir() { return Err("Path in not dir!".to_string()); }
-        let file_path = path.join(LAUNCH_FILE_NAME);
-        if file_path.exists() {
-            MinecraftInstanceOption::load_is_file(file_path)
-        }else{
-            return Err(format!("Not find '{}'!",LAUNCH_FILE_NAME));
-        }
-    }
     pub async fn load_is_file_async(path:PathBuf) -> Result<MinecraftInstanceOption, String> {
         if path.is_file() {
             let content = tokio::fs::read_to_string(path).await
@@ -118,26 +105,6 @@ impl MinecraftInstanceOption {
         }else{
             Err("Path in not file!".to_string())
         }
-    }
-    pub fn load_is_file(path:PathBuf) -> Result<MinecraftInstanceOption, String> {
-        if path.is_file() {
-            let content = std::fs::read_to_string(path)
-                .map_err(|e|e.to_string())?;
-            let result: MinecraftInstanceOption = serde_json::from_str(&content)
-                .map_err(|e|e.to_string())?;
-            Ok(result)
-        }else{
-            Err("Path in not file!".to_string())
-        }
-    }
-    pub fn save_to_version(&self, path:PathBuf) -> Result<(), String> {
-        let content = serde_json::to_string(&self.clone())
-            .map_err(|e|e.to_string())?;
-        let mut file = std::fs::File::create(path.join(LAUNCH_FILE_NAME))
-            .map_err(|e|e.to_string())?;
-        file.write_all(&content.as_bytes())
-            .map_err(|e|e.to_string())?;
-        Ok(())
     }
     pub async fn save_to_version_async(&self, path:PathBuf) -> Result<(), String> {
         fs::create_dir_all(path.clone())
@@ -193,11 +160,5 @@ impl MinecraftVersion {
             MinecraftLoader::NEOFORGE => format!("neoforge-{}",self.id),
             _ => self.id.clone()
         }
-    }
-    pub fn display(&self) -> String {
-        if self.core != MinecraftLoader::VANILLA {
-            return format!("{}/{}",self.core.to_string(), self.id);
-        }
-        format!("{}/{}-{}",self.core.to_string(), self.id, self.loader.clone().unwrap_or("default".to_string()))
     }
 }

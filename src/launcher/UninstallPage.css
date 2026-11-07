@@ -1,0 +1,69 @@
+/*
+ * The uninstall page. Zero specificity (:where) like the settings pages, so a theme's stylesheet
+ * always wins and a `bare` theme switches it off.
+ */
+
+:where(html:not([data-nh-bare])) {
+:where(.uninstall-page) {
+  flex: 1;
+  min-height: 0;
+  padding: 2rem 2.5rem;
+  box-sizing: border-box;
+  gap: 0.75rem;
+}
+
+:where(.uninstall-page h1) { margin: 0; font-size: 1.6rem; }
+:where(.uninstall-page p) { margin: 0; }
+
+:where(.uninstall-groups) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+:where(.uninstall-group) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--second-background-color);
+  border: 1px solid var(--hr-color);
+  border-radius: var(--nh-radius-control);
+}
+
+:where(.uninstall-item) { padding-left: 1.6rem; }
+
+:where(.uninstall-item-text) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+:where(.uninstall-size) { margin-left: auto; white-space: nowrap; color: var(--text-secondary-color); }
+:where(.uninstall-group-head .settings-option-text) { flex: 1; }
+:where(.uninstall-muted) { color: var(--text-secondary-color); font-size: 0.85rem; }
+:where(.uninstall-error) { color: var(--nh-danger); }
+
+:where(.uninstall-footer) {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+:where(.uninstall-footer .uninstall-muted) { flex: 1; }
+
+:where(.uninstall-danger) {
+  padding: 0.5rem 1.25rem;
+  color: var(--text-color);
+  background-color: var(--nh-danger-strong);
+  border: none;
+  border-radius: var(--nh-radius-control);
+  cursor: pointer;
+}
+
+:where(.uninstall-danger:disabled) { opacity: 0.5; cursor: default; }
+}

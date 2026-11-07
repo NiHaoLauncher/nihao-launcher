@@ -1,21 +1,53 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use tokio::{fs, io::AsyncWriteExt};
+use tokio::fs;
 
 use crate::library::modpack_format::ModpackManifest;
+use crate::library::services::BlockedFile;
 use crate::library::version::MinecraftLoader;
 
 pub const PROFILE_FILE_NAME: &str = "profile.nihao";
 
 fn default_min_ram() -> u32 { 512 }
 
-/// A named local instance's saved configuration — one per `<instance_dir>/profile.nihao`.
-///
-/// Every field added after the original four is `#[serde(default)]` so profiles saved
-/// before that field existed still load — instances created earlier in this project's life
-/// (e.g. before per-instance java_path/jvm_arguments/icon support) would otherwise fail to
-/// deserialize entirely.
+/// The online service project (and build of it) an instance was downloaded from. Our own server's
+/// packs are tracked by `MinecraftProfile::pack` instead; this is for third-party services.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ModpackSource {
+    /// `ServiceInfo::id` of the `services::ContentService` it came from (e.g. `"modrinth"`).
+    pub service: String,
+    pub project_id: String,
+    pub version_id: String,
+    pub version_number: String,
+    pub name: String,
+    /// Public icon and project page on the service; used for Discord presence.
+    #[serde(default)]
+    pub icon_url: Option<String>,
+    #[serde(default)]
+    pub url: Option<String>,
+}
+
+/// Where an instance's play time went, in seconds per place, read from the game log while it runs.
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct PlayStats {
+    /// Title screen and loading, i.e. in no world and on no server.
+    #[serde(default)]
+    pub menu_secs: u64,
+    /// Singleplayer worlds by name.
+    #[serde(default)]
+    pub worlds: HashMap<String, u64>,
+    /// Multiplayer servers by address.
+    #[serde(default)]
+    pub servers: HashMap<String, u64>,
+    /// Seconds played per local calendar day, keyed `YYYY-MM-DD` (the activity chart).
+    #[serde(default)]
+    pub daily: HashMap<String, u64>,
+}
+
+/// A named local instance's saved configuration, one per `<instance_dir>/profile.nihao`. Every
+/// field added after the original four is `#[serde(default)]`, so older profiles still load.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MinecraftProfile {
     pub display_name: String,
@@ -25,9 +57,8 @@ pub struct MinecraftProfile {
     pub max_ram: u32,
     #[serde(default = "default_min_ram")]
     pub min_ram: u32,
-    /// When `false` (the default), this instance's own `max_ram`/`min_ram` are ignored at
-    /// launch in favor of the general "Game settings" RAM allocation — an instance only uses
-    /// its own RAM once the player explicitly opts in via this checkbox.
+    /// When `false` (default), this instance's `max_ram`/`min_ram` are ignored at launch in favour
+    /// of the general "Game settings" RAM; an instance uses its own only when the player opts in.
     #[serde(default)]
     pub use_custom_ram: bool,
     /// Overrides the auto-downloaded/managed JRE when set — a path to a `java`/`javaw` exe.
@@ -44,14 +75,36 @@ pub struct MinecraftProfile {
     /// list and as the launch page's backdrop. `None` means "use the plugin's shared background".
     #[serde(default)]
     pub banner: Option<String>,
-    /// Set once this instance is tracking a published pack (via `generate_modpack_manifest`,
-    /// or a future "install from server" flow) — the last-known manifest for it, so the client
-    /// can diff against a newer `build` without re-fetching its own file list first. `None` for
-    /// a from-scratch/custom instance. See MODPACK_FORMAT.md — this used to be a separate
-    /// `modpack.nihao` file; merged in here since `profile.nihao` was already "the file that
-    /// describes this instance's pack" in every way that mattered.
+    /// Set once this instance tracks a published pack (via `generate_modpack_manifest` or
+    /// `install_online_modpack`): the last-known manifest, so the client can diff against a newer
+    /// `build` without re-fetching its file list. `None` for a custom instance. See
+    /// MODPACK_FORMAT.md.
     #[serde(default)]
     pub pack: Option<ModpackManifest>,
+    /// `true` only for an instance created by `install_online_modpack` ("Public" tab download),
+    /// unlike `pack.is_some()`, which is also true for a local instance its owner later published.
+    /// Its content is dictated by the server, so the UI hides local-only editing
+    /// (icon/banner/name/duplicate) and keeps it out of the "Custom" tab.
+    #[serde(default)]
+    pub downloaded: bool,
+    /// Total time the game ran from this instance, in seconds (counted when it exits).
+    #[serde(default)]
+    pub play_secs: u64,
+    /// `play_secs` split by place; only covers sessions since it was introduced, so it can sum to less.
+    #[serde(default)]
+    pub play_stats: PlayStats,
+    /// Unix time (seconds) of the last launch.
+    #[serde(default)]
+    pub last_played: Option<u64>,
+    /// Set when the instance was downloaded from a third-party `services::ContentService`, tying it
+    /// to that project/build.
+    #[serde(default)]
+    pub source: Option<ModpackSource>,
+    /// Files the pack needs that couldn't be downloaded for the player (their authors disabled
+    /// third-party downloads and no other service has them): the player gets them by hand. Cleared
+    /// as `check_missing_files` finds them in place.
+    #[serde(default)]
+    pub missing_files: Vec<BlockedFile>,
 }
 
 impl MinecraftProfile {
@@ -61,13 +114,7 @@ impl MinecraftProfile {
             .map_err(|e| format!("Cannot create instance directory: {}", e))?;
 
         let content = serde_json::to_string(self).map_err(|e| e.to_string())?;
-        let mut file = fs::File::create(instance_dir.join(PROFILE_FILE_NAME))
-            .await
-            .map_err(|e| format!("Cannot create profile file: {}", e))?;
-        file.write_all(content.as_bytes())
-            .await
-            .map_err(|e| format!("Cannot write profile file: {}", e))?;
-        Ok(())
+        launcher_common::write_atomic(&instance_dir.join(PROFILE_FILE_NAME), content.as_bytes())
     }
 
     pub async fn load(instance_dir: &Path) -> Result<Self, String> {
@@ -102,4 +149,18 @@ pub async fn list_instances(instances_root: &Path) -> Vec<(String, MinecraftProf
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn profiles_saved_before_missing_files_existed_still_load() {
+        let profile: MinecraftProfile = serde_json::from_str(
+            r#"{"display_name":"x","version_id":"1.21.1","core":"VANILLA","loader_version":null,"max_ram":2048}"#,
+        )
+        .unwrap();
+        assert!(profile.missing_files.is_empty());
+    }
 }

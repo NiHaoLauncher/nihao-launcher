@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import "./SliderField.css";
 
 /**
- * Draggable slider with a floating value badge and tick marks — the same control used by
- * the launcher's own Game settings (RAM allocation), shared so every RAM-style slider in the
- * app (including per-instance modpack settings) looks and behaves identically instead of
- * each place reimplementing a plain native `<input type="range">`.
+ * Draggable slider with a floating value badge and tick marks; shared so all RAM-style sliders
+ * look and behave the same.
  */
 export default function SliderField({
   value,
@@ -70,7 +68,6 @@ export default function SliderField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDragging]);
 
-  // Build tick marks: use custom marks or default 5 evenly spaced
   const tickPositions = marks
     ? marks.map(m => ({ value: m, pct: ((m - min) / (max - min)) * 100 }))
     : Array.from({ length: 5 }).map((_, i) => {
@@ -81,19 +78,16 @@ export default function SliderField({
   return (
     <div className={`slider-field${disabled ? " slider-field-disabled" : ""}`}>
       <div className="slider-track-wrapper">
-        {/* Track */}
         <div
           ref={trackRef}
           className="slider-track"
           onClick={handleTrackClick}
         >
-          {/* Green fill */}
           <div
             className="slider-fill"
             style={{ width: `${percentage}%` }}
           />
 
-          {/* Tick marks */}
           {tickPositions.map((t, i) => (
             <div
               key={i}
@@ -102,14 +96,12 @@ export default function SliderField({
             />
           ))}
 
-          {/* Thumb (draggable) */}
           <div
             className="slider-thumb"
             style={{ left: `${percentage}%` }}
             onMouseDown={handleMouseDown}
           />
 
-          {/* Value badge, floating above the thumb — clamped so it can't overflow the track's edges */}
           <div
             className="slider-value-badge"
             style={{ left: `clamp(28px, ${percentage}%, calc(100% - 28px))` }}
@@ -118,7 +110,6 @@ export default function SliderField({
           </div>
         </div>
 
-        {/* Min / Max labels */}
         <div className="slider-limits">
           <span>{min}</span>
           <span>{max}</span>

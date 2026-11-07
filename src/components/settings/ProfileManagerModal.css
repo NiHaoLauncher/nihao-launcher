@@ -1,0 +1,65 @@
+.profile-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-manager-row,
+.profile-manager-add-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-manager-avatar {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: var(--second-background-color);
+  color: var(--text-secondary-color);
+}
+
+.profile-manager-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-manager-default.active {
+  cursor: default;
+  border-color: var(--main-color);
+  color: var(--main-color);
+}
+
+.profile-manager-row input,
+.profile-manager-add-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--hr-color);
+  background-color: var(--second-background-color);
+  color: var(--text-color);
+}
+
+.profile-manager-add-row {
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--hr-color);
+  margin-top: 0.25rem;
+}
+
+.profile-manager-create-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}

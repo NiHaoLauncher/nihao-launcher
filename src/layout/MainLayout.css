@@ -2,6 +2,7 @@
     background-color: var(--main-background-color);
     border-radius: var(--border-radius);
     width: 100%;
+    flex-shrink: 0;
     overflow: hidden;
     display: none;
 }
@@ -26,6 +27,7 @@
     padding: 6px 12px 4px 12px;
     flex: 1;
     min-width: 0;
+    
 }
 
 .mainLayout>.progress>.progress-content>.progress-header>.progress-name {
@@ -37,6 +39,9 @@
     text-overflow: ellipsis;
     flex-shrink: 0;
     max-width: 40%;
+    margin-top: auto;
+    margin-bottom: auto;
+    font-size: large;
 }
 
 .mainLayout>.progress>.progress-content>.progress-header>.progress-game {
@@ -51,7 +56,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: color-mix(in srgb, var(--nh-fg) 10%, transparent);
     color: var(--text-secondary-color);
     font-size: 0.55rem;
     font-weight: 700;
@@ -78,17 +83,63 @@
     background-color: var(--main-second-color);
 }
 
-.mainLayout .mainbar>.quick-panel {
+.mainLayout .mainbar>.quick-panels {
+    display: flex;
+    margin: 0 auto;
+    gap: 10px;
+}
+
+.mainLayout .mainbar .quick-panel {
     display: flex;
     background-color: var(--mainbar-background-color);
-    margin: 0 auto;
     border-radius: var(--border-radius);
     padding: 5px 20px 0 20px;
     gap: 15px;
 }
 
-.mainLayout .mainbar>.quick-panel>.hyperlink {
+.mainLayout .mainbar .quick-panel>.hyperlink,
+.mainLayout .mainbar .quick-panel>.quick-item {
     cursor: pointer;
     width: 32px;
     height: 32px;
+}
+
+.mainLayout .mainbar .quick-panel>.quick-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: transparent;
+    color: var(--nh-fg);
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/*
+ * The icon (<img> or inline <svg>) scales to fill the button: `contain` keeps its aspect ratio,
+ * `display: block` removes the inline baseline gap.
+ */
+.mainLayout .mainbar .quick-panel>.quick-item>svg,
+.mainLayout .mainbar .quick-panel>.quick-item>img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.mainLayout .mainbar .quick-panel>.quick-item:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--nh-fg) 12%, transparent);
+}
+
+.mainLayout .mainbar .quick-panel>.quick-item.active,
+.mainLayout .mainbar .quick-panel>.hyperlink.active {
+    outline: 2px solid var(--main-color);
+}
+
+.mainLayout .mainbar .quick-panel>.quick-item:disabled {
+    opacity: 0.4;
+    cursor: default;
 }

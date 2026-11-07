@@ -13,17 +13,6 @@ pub struct MinecraftPath {
 }
 
 impl MinecraftPath {
-    pub fn default() -> MinecraftPath {
-        let root_path: PathBuf = get_default_path();
-        MinecraftPath {
-            game: root_path.clone(),
-            versions: root_path.join("versions"),
-            assets: root_path.join("assets"),
-            library: root_path.join("libraries"),
-            runtime: root_path.join("runtime"),
-            resource: root_path.join("resource"),
-        }
-    }
     pub fn new(path: PathBuf) -> MinecraftPath {
         MinecraftPath {
             game: path.clone(),
@@ -58,11 +47,3 @@ impl MinecraftPath {
     }
 }
 
-pub fn get_default_path() -> PathBuf {
-    #[cfg(target_os = "windows")] {
-        if let Some(data_dir) = dirs::data_dir() {
-            return data_dir.join(".minecraft");
-        }
-    }
-    PathBuf::from("minecraft").to_path_buf()
-}

@@ -1,0 +1,680 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: color-mix(in srgb, var(--nh-shade) 50%, transparent);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-container {
+  background-color: var(--modal-background-color);
+  border-radius: var(--nh-radius-modal);
+  border: 1px solid var(--border-subtle, color-mix(in srgb, var(--nh-fg) 8%, transparent));
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--nh-shade) 40%, transparent);
+  animation: modal-on var(--c-modal-open) steps(var(--c-modal-open-steps), end) both;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.modal-overlay.closing {
+  animation: modal-flash var(--c-modal-close) steps(var(--c-modal-close-steps), end) both;
+  pointer-events: none;
+}
+
+.modal-overlay.closing .modal-container {
+  animation: modal-off var(--c-modal-close) steps(var(--c-modal-close-steps), end) both;
+}
+
+.modal-container::before,
+.modal-container::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 0 solid var(--main-second-color, var(--main-color));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.modal-container::before {
+  top: 0;
+  left: 0;
+  border-top-width: 2px;
+  border-left-width: 2px;
+  border-top-left-radius: var(--nh-radius-modal);
+}
+
+.modal-container::after {
+  right: 0;
+  bottom: 0;
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+  border-bottom-right-radius: var(--nh-radius-modal);
+}
+
+.modal-container.modal-size-small {
+  max-width: 400px;
+}
+
+.modal-container.modal-size-medium {
+  max-width: 600px;
+}
+
+.modal-container.modal-size-large {
+  max-width: 900px;
+}
+
+.modal-container.modal-size-full {
+  max-width: 95vw;
+  max-height: 95vh;
+}
+
+.modal-categories-layout {
+  max-width: 900px;
+}
+
+.modal-container.modal-fixed-height {
+  height: min(var(--modal-height), 90vh);
+}
+
+.modal-container.modal-size-full.modal-fixed-height {
+  height: min(var(--modal-height), 95vh);
+}
+
+.modal-fixed-height > .modal-body {
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * Console scrollbar for every modal and the category menu: a text-mode dotted rail with a block
+ * handle drawn as scan lines, no arrows.
+ */
+.modal-container ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.modal-container ::-webkit-scrollbar-track {
+  background-color: transparent;
+  background-image: repeating-linear-gradient(180deg, color-mix(in srgb, var(--nh-fg) 20%, transparent) 0 2px, transparent 2px 5px);
+  background-size: 2px 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.modal-container ::-webkit-scrollbar-thumb {
+  /* the 2px transparent border + padding-box clip leave an 8px-wide block inside the 12px gutter */
+  background-color: transparent;
+  background-image: repeating-linear-gradient(180deg, color-mix(in srgb, var(--nh-fg) 70%, transparent) 0 3px, transparent 3px 5px);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 0;
+}
+
+.modal-container ::-webkit-scrollbar-thumb:hover {
+  background-image: repeating-linear-gradient(180deg, var(--main-second-color, #69acf5) 0 3px, transparent 3px 5px);
+}
+
+.modal-container ::-webkit-scrollbar-button {
+  display: none;
+}
+
+.modal-container ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/*
+ * Elements with the drawn console scrollbar (consoleScrollbar.ts) hide the native one; the overlay
+ * sits at the right edge of `.modal-body`, its handle moves in whole 8px cells.
+ */
+.modal-body {
+  position: relative;
+}
+
+.has-console-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.console-scrollbar {
+  position: absolute;
+  width: var(--c-bar-w); /* top / left / height are set from the scrolled element's geometry */
+  z-index: 3;
+  display: none;
+  background-image: repeating-linear-gradient(180deg, color-mix(in srgb, var(--nh-fg) 20%, transparent) 0 2px, transparent 2px 5px);
+  background-size: 2px 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  cursor: default;
+}
+
+.console-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  left: 2px;
+  right: 2px;
+  /* scan lines whose period matches the 8px cell: 6px lit, 2px dark — rows of "█" */
+  background-image: repeating-linear-gradient(180deg, color-mix(in srgb, var(--nh-fg) 70%, transparent) 0 calc(var(--c-cell) - 2px), transparent calc(var(--c-cell) - 2px) var(--c-cell));
+  cursor: grab;
+}
+
+.console-scrollbar-thumb:hover {
+  background-image: repeating-linear-gradient(180deg, var(--main-second-color, #69acf5) 0 calc(var(--c-cell) - 2px), transparent calc(var(--c-cell) - 2px) var(--c-cell));
+}
+
+.console-scrollbar-thumb:active {
+  cursor: grabbing;
+  background-image: repeating-linear-gradient(180deg, var(--main-color) 0 calc(var(--c-cell) - 2px), transparent calc(var(--c-cell) - 2px) var(--c-cell));
+}
+
+.category-btn:focus-visible,
+.modal-close:focus-visible {
+  outline: 2px solid var(--main-color);
+  outline-offset: 2px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border-subtle, color-mix(in srgb, var(--nh-fg) 8%, transparent));
+  flex-shrink: 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-color);
+}
+
+.modal-header h3::before {
+  content: "›";
+  margin-right: 0.55rem;
+  color: var(--main-second-color, var(--main-color));
+}
+
+/*
+ * A "waiting" ellipsis after the title in coarse steps; fixed width so the title doesn't shift.
+ * (No animation => no dots.)
+ */
+.modal-header h3::after {
+  content: "";
+  display: inline-block;
+  width: 1.5em;
+  text-align: left;
+  color: var(--main-second-color, var(--main-color));
+  animation: modal-title-dots var(--c-dots) steps(1) infinite;
+}
+
+@keyframes modal-title-dots {
+  0% { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75% { content: "..."; }
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.modal-close:hover {
+  background-color: color-mix(in srgb, var(--nh-fg) 10%, transparent);
+}
+
+.modal-body {
+  display: flex;
+  overflow: hidden;
+  min-height: 50px;
+  max-width: 100%;
+}
+
+.modal-content {
+  padding: 22px;
+  overflow-y: auto;
+  flex: 1;
+  min-width: 0;
+  /*
+   * No CSS smoothing: wheel scrolling is driven by ratchetScroll.ts, and a smooth `scrollTop`
+   * would fight it.
+   */
+  scroll-behavior: auto;
+}
+
+.modal-content-framed {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.modal-pane {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: min-content;
+  border: 1px solid color-mix(in srgb, var(--nh-fg) 16%, transparent);
+  border-radius: var(--nh-radius-panel);
+  background: color-mix(in srgb, var(--nh-shade) 16%, transparent);
+  overflow: hidden;
+}
+
+.modal-pane-title {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--nh-fg) 16%, transparent);
+  background: color-mix(in srgb, var(--nh-fg) 4%, transparent);
+  font: 600 0.72rem/1 var(--nh-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--nh-fg) 60%, transparent);
+}
+
+.modal-pane-title > span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 9px;
+  background: var(--main-second-color, var(--main-color));
+}
+
+.modal-pane-body {
+  flex: 1;
+  padding: 18px;
+}
+
+/*
+ * Category switch: the new page steps in (coarse steps, like a console redrawing); off with
+ * "Interface animations".
+ */
+.modal-content-switch {
+  animation: modal-content-in var(--c-page-in) steps(var(--c-page-in-steps), end) both;
+}
+
+/*
+ * The page being left is erased first, bottom to top, a line at a time; the next page loads when
+ * this has played.
+ */
+.modal-content-switch.leaving {
+  animation: modal-content-out var(--c-page-out) steps(var(--c-page-out-steps), end) both;
+  pointer-events: none;
+}
+
+@keyframes modal-content-out {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 0 100% 0); }
+}
+
+@keyframes modal-content-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.modal-content > * {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+.modal-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.modal-content pre,
+.modal-content code {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.modal-content table {
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+
+.modal-content button:not(.category-btn):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--nh-shade) 15%, transparent);
+}
+
+.modal-categories {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 0;
+  box-sizing: border-box;
+  border-left: 1px solid var(--border-subtle, color-mix(in srgb, var(--nh-fg) 8%, transparent));
+  background-color: var(--modal-background-color);
+  min-width: 210px;
+  max-width: 250px;
+  overflow-y: auto;
+}
+
+.category-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 8px 38px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  text-align: left;
+  font: 500 0.9rem/1.2 var(--nh-font-mono);
+  color: color-mix(in srgb, var(--nh-fg) 55%, transparent);
+}
+
+.category-btn::before {
+  content: ">";
+  position: absolute;
+  left: 17px;
+  top: 50%;
+  transform: translateY(-52%);
+  font-weight: 700;
+  color: var(--main-second-color, var(--main-color));
+  opacity: 0;
+}
+
+.category-btn:hover {
+  color: var(--nh-fg);
+}
+
+.category-btn:hover::before {
+  opacity: 0.45;
+}
+
+.category-btn.active {
+  color: var(--nh-fg);
+}
+
+.category-btn.active::before {
+  opacity: 1;
+}
+
+.category-btn.active::after {
+  content: "";
+  width: 6px;
+  height: 14px;
+  border-radius: 1px;
+  background: var(--main-second-color, var(--main-color));
+  animation: category-cursor var(--c-cursor) steps(1) infinite;
+}
+
+@keyframes category-cursor {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+
+.category-btn.active .category-icon {
+  color: var(--main-second-color, var(--main-color));
+}
+
+.category-icon {
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.category-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.category-label {
+  flex: 1;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/*
+ * Opening: a CRT switching on. A dot stretches into a line, then opens into the window, in coarse
+ * steps.
+ */
+@keyframes modal-on {
+  0% { transform: scale(0.04, 0.006); opacity: 0; filter: brightness(2.6); }
+  20% { transform: scale(0.04, 0.006); opacity: 1; filter: brightness(2.6); }
+  65% {
+    transform: scale(1, 0.006);
+    filter: brightness(2.2);
+    animation-timing-function: steps(var(--c-modal-height-steps), end);
+  }
+  100% { transform: scale(1, 1); filter: brightness(1); }
+}
+
+/*
+ * Closing: an accent flash (never white), then the window is eaten toward its centre in coarse
+ * steps.
+ */
+@keyframes modal-off {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    filter: brightness(1);
+  }
+  16% {
+    transform: scale(1);
+    opacity: 1;
+    filter: brightness(1.45) saturate(1.3);
+    box-shadow: 0 0 0 1px var(--main-second-color, #69acf5), 0 0 30px 6px color-mix(in srgb, var(--main-color) 55%, transparent);
+  }
+  100% {
+    transform: scale(0.02);
+    opacity: 0;
+    filter: brightness(1.45) saturate(1.3);
+    box-shadow: 0 0 14px 3px color-mix(in srgb, var(--main-color) 45%, transparent);
+  }
+}
+
+@keyframes modal-flash {
+  0% { background-color: color-mix(in srgb, var(--nh-shade) 50%, transparent); opacity: 1; }
+  20% { background-color: color-mix(in srgb, var(--main-color) 16%, transparent); opacity: 1; }
+  100% { background-color: color-mix(in srgb, var(--nh-shade) 0%, transparent); opacity: 0; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.confirm-message {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-color);
+  line-height: 1.6;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 25px;
+  background-color: var(--bg-color);
+  flex-shrink: 0;
+}
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--border-subtle, color-mix(in srgb, var(--nh-fg) 8%, transparent));
+  background-color: var(--modal-background-color);
+  flex-shrink: 0;
+}
+
+/* Confirm dialogs build their own footer (no prompt/actions wrappers): keep their buttons on the right. */
+.modal-footer.confirm-actions {
+  justify-content: flex-end;
+}
+
+.modal-footer-prompt {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  font: 700 0.95rem/1 var(--nh-font-mono);
+  color: var(--main-second-color, var(--main-color));
+}
+
+.modal-footer-prompt > span:first-child {
+  opacity: 0.8;
+  user-select: none;
+}
+
+.modal-footer-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--nh-fg) 72%, transparent);
+}
+
+.modal-footer-prompt > i {
+  font-style: normal;
+  margin-left: 2px;
+  animation: category-cursor var(--c-cursor) steps(1) infinite;
+}
+
+.modal-footer-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/*
+ * Footer buttons read as commands in brackets: `[ Save ]`. `settings-save-btn`/`btn-primary` mark
+ * the main action, `btn-danger` a destructive one.
+ */
+.modal-footer button {
+  padding: 8px 6px;
+  border: none !important;
+  border-radius: 4px;
+  background: transparent !important;
+  box-shadow: none !important;
+  font: 600 0.88rem/1 var(--nh-font-mono);
+  letter-spacing: 0.03em;
+  color: color-mix(in srgb, var(--nh-fg) 72%, transparent);
+  cursor: pointer;
+}
+
+.modal-footer button::before { content: "[ "; opacity: 0.55; white-space: pre; }
+.modal-footer button::after { content: " ]"; opacity: 0.55; white-space: pre; }
+
+.modal-footer button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--nh-fg) 10%, transparent) !important;
+  color: var(--nh-fg);
+}
+
+.modal-footer .settings-save-btn,
+.modal-footer .btn-primary {
+  color: var(--main-second-color, var(--main-color));
+}
+
+.modal-footer .settings-save-btn:hover:not(:disabled),
+.modal-footer .btn-primary:hover:not(:disabled) {
+  background: var(--main-color) !important;
+  color: var(--nh-fg);
+}
+
+.modal-footer .btn-danger { color: var(--nh-danger); }
+
+.modal-footer .btn-danger:hover:not(:disabled) {
+  background: var(--nh-danger-strong) !important;
+  color: var(--nh-fg);
+}
+
+.modal-footer button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (max-width: 768px) {
+  .modal-categories-layout {
+    max-width: 100%;
+  }
+
+  .modal-body {
+    flex-direction: column;
+  }
+
+  .modal-categories {
+    flex-direction: row;
+    padding: 0 8px;
+    border-left: none;
+    border-top: 1px solid var(--border-subtle, color-mix(in srgb, var(--nh-fg) 8%, transparent));
+    min-width: 100%;
+    max-height: 80px;
+    overflow-x: auto;
+  }
+
+  .category-btn {
+    padding: 10px 15px 10px 30px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .category-btn::before {
+    left: 13px;
+  }
+}

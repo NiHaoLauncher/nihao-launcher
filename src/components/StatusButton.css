@@ -1,0 +1,182 @@
+/* The status button and its panel. Zero specificity (:where) so a theme's rules win. */
+:where(.status-root) { position: relative; margin-left: 15px; }
+
+:where(.status-btn) {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-color);
+  background-color: var(--mainbar-background-color);
+  box-shadow: none;
+}
+:where(.status-btn.open) { outline: 2px solid var(--main-color); }
+:where(.status-update) { background-color: var(--main-color); }
+:where(.status-offline) { color: var(--nh-danger); }
+:where(.status-game) { color: var(--main-second-color); }
+:where(.status-ring) { background: conic-gradient(var(--main-color) var(--status-pct), color-mix(in srgb, var(--nh-fg) 18%, transparent) 0); }
+:where(.status-ring)::before { content: ""; position: absolute; inset: 3px; border-radius: 50%; background-color: var(--mainbar-background-color); }
+:where(.status-pct) { position: relative; font-size: 0.65rem; font-weight: 700; }
+
+:where(.status-dot) {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--main-background-color);
+  box-sizing: border-box;
+}
+:where(.status-dot-ok) { background-color: var(--nh-ok); }
+:where(.status-dot-warn) { background-color: var(--nh-warn); }
+:where(.status-dot-bad) { background-color: var(--nh-danger); }
+:where(.status-dot-info) { background-color: var(--main-color); }
+:where(.status-update) .status-dot { background-color: #fff; border-color: var(--main-color); }
+
+:where(.status-panel) {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 380px;
+  max-height: 75vh;
+  overflow-y: auto;
+  color: var(--text-color);
+  background-color: var(--second-background-color);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--nh-radius-modal);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--nh-shade) 50%, transparent);
+}
+
+:where(.status-head) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--main-color) 12%, transparent), transparent);
+}
+:where(.status-head-main) { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+:where(.status-head-main b) { font-size: 1.05rem; }
+:where(.status-head small) { font-size: 0.72rem; color: var(--text-secondary-color); }
+
+:where(.status-chip) { padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+:where(.status-chip-ok) { color: var(--nh-ok); background-color: color-mix(in srgb, var(--nh-ok) 16%, transparent); }
+:where(.status-chip-warn) { color: var(--nh-warn); background-color: color-mix(in srgb, var(--nh-warn) 16%, transparent); }
+:where(.status-chip-bad) { color: var(--nh-danger); background-color: color-mix(in srgb, var(--nh-danger) 16%, transparent); }
+:where(.status-chip-info) { color: var(--main-color); background-color: color-mix(in srgb, var(--main-color) 18%, transparent); }
+
+:where(.status-cards) { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+:where(.status-item) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--nh-radius-card);
+  border: 1px solid var(--border-subtle);
+  background-color: color-mix(in srgb, var(--control-background-color) 60%, transparent);
+}
+:where(.status-ic) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  overflow: hidden;
+  background-color: var(--control-background-color);
+}
+:where(.status-ic img) { width: 100%; height: 100%; object-fit: cover; box-sizing: border-box; border-radius: 10px; background-color: color-mix(in srgb, var(--nh-fg) 14%, transparent); border: 1px solid color-mix(in srgb, var(--nh-fg) 28%, transparent); }
+:where(.status-ic-ok) { color: var(--nh-ok); background-color: color-mix(in srgb, var(--nh-ok) 14%, transparent); }
+:where(.status-ic-warn) { color: var(--nh-warn); background-color: color-mix(in srgb, var(--nh-warn) 14%, transparent); }
+:where(.status-ic-bad) { color: var(--nh-danger); background-color: color-mix(in srgb, var(--nh-danger) 14%, transparent); }
+:where(.status-ic-acc) { color: var(--main-second-color); background-color: color-mix(in srgb, var(--main-color) 20%, transparent); }
+:where(.status-tx) { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+:where(.status-tx b) { font-size: 0.85rem; font-weight: 600; }
+:where(.status-tx span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: var(--text-secondary-color); }
+
+:where(.status-file) { opacity: 0.75; }
+:where(.status-pct-big) { flex-shrink: 0; align-self: flex-start; font-size: 0.95rem; font-weight: 700; color: var(--main-color); }
+
+:where(.status-pill) {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background-color: var(--main-color);
+  box-shadow: none;
+}
+:where(.status-pill:disabled) { opacity: 0.7; cursor: default; }
+:where(.status-icon-btn) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  color: var(--text-secondary-color);
+  background: transparent;
+  box-shadow: none;
+}
+:where(.status-icon-btn:hover:not(:disabled)) { color: var(--text-color); border-color: var(--main-color); }
+:where(.status-icon-btn.spinning svg) { animation: status-spin 0.9s linear infinite; }
+@keyframes status-spin { to { transform: rotate(360deg); } }
+
+:where(.status-bar) { height: 5px; margin-top: 6px; border-radius: 3px; overflow: hidden; background-color: color-mix(in srgb, var(--nh-fg) 15%, transparent); }
+:where(.status-bar i) { display: block; height: 100%; border-radius: 3px; background-color: var(--main-color); transition: width 0.4s ease; }
+
+:where(.status-sec) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary-color);
+}
+:where(.status-empty) { padding: 4px 16px 16px; font-size: 0.78rem; color: var(--text-secondary-color); }
+:where(.status-notice) { display: flex; align-items: center; gap: 10px; margin: 0 12px 6px; padding: 7px 10px; border-radius: 10px; font-size: 0.78rem; background-color: color-mix(in srgb, var(--control-background-color) 45%, transparent); }
+:where(.status-notice:last-child) { margin-bottom: 12px; }
+:where(.status-nt) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+:where(.status-nt b) { font-weight: 600; }
+:where(.status-nt span) { font-size: 0.72rem; color: var(--text-secondary-color); }
+:where(.status-na) { position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 30px; height: 30px; }
+:where(.status-na img) { width: 30px; height: 30px; border-radius: 8px; object-fit: cover; background-color: color-mix(in srgb, var(--nh-fg) 14%, transparent); border: 1px solid color-mix(in srgb, var(--nh-fg) 28%, transparent); box-sizing: border-box; }
+:where(.status-na .status-nd) { position: static; }
+:where(.status-na img + .status-nd) { position: absolute; right: -6px; bottom: -6px; width: 16px; height: 16px; border: 2px solid var(--second-background-color); box-sizing: content-box; background-color: var(--second-background-color); }
+:where(.status-na img + .status-nd-ok) { color: var(--nh-ok); }
+:where(.status-na img + .status-nd-error) { color: var(--nh-danger); }
+:where(.status-na img + .status-nd-info) { color: var(--main-color); }
+:where(.status-title) { display: inline-flex; align-items: center; gap: 7px; }
+:where(.status-notice time) { flex-shrink: 0; font-size: 0.7rem; color: var(--text-secondary-color); }
+:where(.status-nd) { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; }
+:where(.status-nd-info) { color: var(--main-color); background-color: color-mix(in srgb, var(--main-color) 18%, transparent); }
+:where(.status-nd-ok) { color: var(--nh-ok); background-color: color-mix(in srgb, var(--nh-ok) 18%, transparent); }
+:where(.status-nd-error) { color: var(--nh-danger); background-color: color-mix(in srgb, var(--nh-danger) 18%, transparent); }
+:where(.status-clear) {
+  padding: 2px 6px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary-color);
+  background: transparent;
+  box-shadow: none;
+}
+:where(.status-clear:hover) { color: var(--text-color); }

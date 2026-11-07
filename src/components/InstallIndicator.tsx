@@ -2,9 +2,8 @@ import "./InstallIndicator.css";
 import { InstallEntry, computeEtapPercent, computeOverallPercent } from "../hooks/useInstallStatus";
 
 /**
- * Mini "other installs running" spinners — sits in the top-right corner of the bottom
- * progress bar, one ring per install beyond the one already shown as the full bar. Hover a
- * ring to see that install's full detail (name, stage, file count, its own progress bar).
+ * Mini spinners for other running installs, in the top-right corner of the bottom progress bar:
+ * one ring per install beyond the one shown as the full bar; hover a ring for details.
  */
 export default function InstallIndicator({ installs }: { installs: InstallEntry[] }) {
   if (installs.length === 0) return null;

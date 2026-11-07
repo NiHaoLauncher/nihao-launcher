@@ -1,6 +1,7 @@
-/* Local-modpack list, tiled — banner dimmed/grayscale at rest, full color on hover, same idea
-   as the old launcher's game_list.html .modpack. Fixed tile size, wraps to as many per row as
-   fit — resizing the window changes how many fit per row, not the tile size. */
+/*
+ * Local-modpack tiles: banner dimmed/grayscale at rest, full colour on hover. Fixed tile size;
+ * resizing the window changes how many fit per row.
+ */
 .modpack-tiles {
     display: flex;
     flex-wrap: wrap;
@@ -8,11 +9,13 @@
     padding: 20px;
 }
 
-/* Right-click menu for a modpack tile — position:fixed at the click point (TileContextMenu
-   sets left/top inline from the click's clientX/clientY). */
+/*
+ * Right-click menu for a modpack tile: position:fixed at the click point (TileContextMenu sets
+ * left/top inline).
+ */
 .modpack-context-menu {
     position: fixed;
-    z-index: 50;
+    z-index: 300; /* above modals (100), e.g. the full-size screenshot viewer */
     min-width: 190px;
     display: flex;
     flex-direction: column;
@@ -21,7 +24,7 @@
     background-color: var(--second-background-color);
     border: 1px solid var(--hr-color);
     border-radius: 8px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 16px 40px color-mix(in srgb, var(--nh-shade) 50%, transparent);
 }
 
 .modpack-context-menu button {
@@ -49,7 +52,7 @@
 }
 
 .modpack-context-menu button.danger {
-    color: #ff6b6b;
+    color: var(--nh-danger);
 }
 
 .modpack-context-menu button.danger:hover:not(:disabled) {
@@ -72,7 +75,7 @@
     overflow: hidden;
     cursor: pointer;
     background-color: var(--second-background-color);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 6px color-mix(in srgb, var(--nh-shade) 30%, transparent);
     transition: transform 0.1s ease;
 }
 
@@ -108,7 +111,7 @@
     align-items: center;
     gap: 10px;
     padding: 10px;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.35) 70%, transparent);
+    background: linear-gradient(to top, color-mix(in srgb, var(--nh-shade) 75%, transparent), color-mix(in srgb, var(--nh-shade) 35%, transparent) 70%, transparent);
 }
 
 .modpack-tile-icon {
@@ -118,7 +121,7 @@
     border-radius: 8px;
     object-fit: cover;
     background-color: var(--main-background-color);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--nh-shade) 50%, transparent);
 }
 
 .modpack-tile-text {
@@ -138,8 +141,119 @@
 .modpack-tile-text p {
     margin: 0;
     font-size: 12px;
-    color: #ccc;
+    color: color-mix(in srgb, var(--text-color) 80%, transparent);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.modpack-tile-download {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: none;
+    background-color: color-mix(in srgb, var(--main-background-color) 75%, transparent);
+    color: white;
+    cursor: pointer;
+}
+
+.modpack-tile-installing {
+    position: absolute;
+    inset: 0;
+    /* no z-index: stays under the tile's info/badge, which come later in the DOM */
+    display: grid;
+    place-items: start center;
+    padding-top: 14px;
+    pointer-events: none;
+    background-color: color-mix(in srgb, var(--nh-shade) 55%, transparent);
+    color: var(--nh-fg);
+}
+.modpack-tile-installing svg {
+    width: 44px;
+    height: 44px;
+    opacity: 0.85;
+    animation: tile-installing 1.3s ease-in-out infinite;
+}
+@keyframes tile-installing {
+    0%, 100% { transform: translateY(-5px); opacity: 0.5; }
+    55% { transform: translateY(5px); opacity: 1; }
+}
+
+.modpack-tile-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 1;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: color-mix(in srgb, var(--main-background-color) 75%, transparent);
+    color: white;
+}
+
+.modpack-tile-badge svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+}
+
+.modpack-tile-badge-nihao {
+    left: auto;
+    right: 8px;
+}
+
+.modpack-tile-badge-nihao img { width: 16px; height: 16px; border-radius: 4px; }
+
+.create-loaders { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.modpack-tile-badge-owner {
+    background-color: var(--main-color);
+}
+
+.modpack-tile-download svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+}
+
+.modpack-tile-download:hover:not(:disabled) {
+    background-color: var(--main-color);
+}
+
+.modpack-tile-download:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.modpack-tile-error {
+    /*
+     * Inside the tile's own bounds (not above it) so a scroll container can't clip it; a top-row
+     * tile used to render it off screen.
+     */
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 40px;
+    margin: 0;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background-color: color-mix(in srgb, var(--main-background-color) 90%, transparent);
+    color: var(--nh-danger);
+    font-size: 11px;
+    line-height: 1.3;
+    max-height: calc(100% - 96px);
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -151,7 +265,7 @@
     padding: 7px;
     border-radius: 16px;
     background-color: var(--second-background-color);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 5%, transparent);
     cursor: pointer;
     transition: all 0.3s ease;
     gap: 12px;
@@ -165,6 +279,33 @@
     border-radius: 6px;
     padding: 5px;
 }
+.variant.instance .variant-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    height: 40px;
+    width: 40px;
+    box-sizing: border-box;
+    border: 1px solid var(--hr-color);
+    border-radius: 6px;
+    color: var(--nh-fg);
+}
+.variant.instance .variant-icon svg { width: 24px; height: 24px; }
+.variant.instance h2 .variant-service {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: -2px;
+}
+.modal-container:has(.create-variants) { max-width: 740px; }
+.variant.instance h2 { display: flex; align-items: center; }
+.create-variants { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+.create-variants-col { display: flex; flex-direction: column; gap: 5px; }
+.create-variants-col .variant.instance { margin-bottom: 0; }
+.create-variants-col .variant-fill { flex: 1; }
 .variant.instance p {
     color: var(--text-secondary-color);
     margin: 0;
@@ -224,119 +365,19 @@ select option:checked {
 }
 
 .modpack-error {
-    color: #dc3545;
+    color: var(--nh-danger-strong);
     font-size: 0.85rem;
 }
 
 .modpack-danger-btn {
-    background-color: #dc3545;
+    background-color: var(--nh-danger-strong);
     color: white;
 }
 
-.modpack-share-formats {
-    display: flex;
-    gap: 14px;
-    margin-top: 8px;
-}
-
-/* Same idea as the Home page's game tiles (src/launcher.css's .home-game-tile /
-   .home-game-tile-flyout) — a small icon that pops a details card out to the side on hover,
-   instead of squeezing text into the icon's own small box. */
-.modpack-share-format {
-    position: relative;
-}
-
-.modpack-share-format-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 72px;
-    height: 64px;
-    border-radius: 8px;
-    border: 1px solid var(--hr-color);
-    background-color: var(--second-background-color);
-    color: var(--main-color);
-    cursor: pointer;
-    transition: border-color 0.15s ease, opacity 0.15s ease;
-}
-
-.modpack-share-format-btn:hover:not(:disabled) {
-    border-color: var(--main-color);
-}
-
-.modpack-share-format-btn:disabled {
-    opacity: 0.6;
-    cursor: default;
-}
-
-.modpack-share-format.dimmed .modpack-share-format-btn {
-    opacity: 0.5;
-}
-
-.modpack-share-format-flyout {
-    position: absolute;
-    left: calc(100% + 10px);
-    top: 0;
-    width: 220px;
-    background-color: var(--second-background-color);
-    border-radius: 10px;
-    padding: 12px 14px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-    z-index: 20;
-    opacity: 0;
-    transform: translateX(-6px);
-    pointer-events: none;
-    transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.modpack-share-format-flyout.visible {
-    opacity: 1;
-    transform: translateX(0);
-}
-
-.modpack-share-format-flyout strong {
-    display: block;
-    font-size: 0.85rem;
-    color: var(--text-color);
-    margin-bottom: 4px;
-}
-
-.modpack-share-format-flyout span {
-    font-size: 0.75rem;
-    color: var(--text-secondary-color);
-    line-height: 1.4;
-}
-
-.modpack-share-files {
-    display: flex;
-    flex-direction: column;
-    max-height: 220px;
-    overflow-y: auto;
-    border: 1px solid var(--hr-color);
-    border-radius: 8px;
-}
-
-.modpack-file-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--hr-color);
-}
-
-.modpack-file-row:last-child {
-    border-bottom: none;
-}
-
-.modpack-file-row:hover {
-    background-color: var(--second-background-color);
-}
-
-.modpack-file-row input {
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
+/* The pack has a newer version than the one installed. */
+.modpack-update-btn {
+    background-color: var(--main-color);
+    color: oklch(from var(--main-color) clamp(0, (l - 0.7) * -1000, 1) 0 0);
 }
 
 .modpack-file-icon {
@@ -404,7 +445,7 @@ select option:checked {
     font-size: 0.72rem;
     font-weight: 600;
     color: white;
-    background: rgba(0, 0, 0, 0.55);
+    background: color-mix(in srgb, var(--nh-shade) 55%, transparent);
     opacity: 0;
     transition: opacity 0.15s ease;
 }
@@ -436,12 +477,14 @@ select option:checked {
     flex: 1;
     width: 100%;
     min-height: 0;
+    /* shortcut: clears the floating window controls (50px bar) even when the quick panel is on top, where it leaves a small gap */
+    margin-top: 44px;
     display: flex;
     flex-direction: column;
-    background-color: rgba(10, 10, 12, 0.88);
+    background-color: color-mix(in srgb, var(--main-background-color) 88%, transparent);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 10%, transparent);
     border-radius: 10px;
     overflow: hidden;
 }
@@ -454,9 +497,28 @@ select option:checked {
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-secondary-color);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--nh-fg) 10%, transparent);
     flex-shrink: 0;
 }
+
+.client-log-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/*
+ * Absolute, not fixed: while expanded the row above is not positioned, so this resolves against
+ * the launch page and never covers the launcher's own panels (quick panel, friends).
+ */
+.launch-panel-slot.launch-panel-slot-expanded {
+    position: absolute;
+    inset: 56px 20px 20px 20px;
+    width: auto;
+    z-index: 20;
+}
+
+.client-log-panel-expanded { margin-top: 0; }
 
 .client-log-close {
     background: none;
@@ -480,7 +542,7 @@ select option:checked {
     font-family: "Consolas", "Cascadia Mono", monospace;
     font-size: 0.75rem;
     line-height: 1.4;
-    color: #d6d6d6;
+    color: color-mix(in srgb, var(--text-color) 85%, transparent);
 }
 
 .client-log-line {
@@ -499,13 +561,14 @@ select option:checked {
     flex-wrap: wrap;
     gap: 8px;
     padding: 8px 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--nh-fg) 10%, transparent);
     flex-shrink: 0;
 }
 
-/* Pill-shaped nav — same look as the "All Instance / Public / Custom" tabs above the modpack
-   grid (see `ModpacksList`'s inline-styled `<nav>`), reused here for the Content manager's
-   category tabs and Browse content's services row. */
+/*
+ * Pill-shaped nav, same look as the "All Instance / Public / Custom" tabs above the modpack grid;
+ * reused for the Content manager's category tabs and Browse content's services row.
+ */
 .pill-nav {
     display: inline-flex;
     flex-wrap: wrap;
@@ -581,12 +644,17 @@ select option:checked {
     border-radius: 50%;
 }
 
+.content-manager-readonly {
+    margin: 0 0 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px; line-height: 1.4;
+    background: color-mix(in srgb, var(--main-color) 14%, transparent); opacity: 0.9;
+}
+
 .content-manager-list {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     padding: 4px 8px;
-    color: #d6d6d6;
+    color: color-mix(in srgb, var(--text-color) 85%, transparent);
 }
 
 .content-manager-scan {
@@ -597,7 +665,7 @@ select option:checked {
     height: 4px;
     margin-top: 8px;
     border-radius: 2px;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: color-mix(in srgb, var(--nh-fg) 10%, transparent);
     overflow: hidden;
 }
 
@@ -608,11 +676,11 @@ select option:checked {
 }
 
 .content-manager-list .modpack-content-row {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid color-mix(in srgb, var(--nh-fg) 8%, transparent);
 }
 
 .content-manager-list .modpack-content-row:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: color-mix(in srgb, var(--nh-fg) 5%, transparent);
 }
 
 .content-manager-list .modpack-option-hint {
@@ -633,7 +701,7 @@ select option:checked {
     height: 36px;
     border-radius: 8px;
     object-fit: cover;
-    background-color: rgba(255, 255, 255, 0.06);
+    background-color: color-mix(in srgb, var(--nh-fg) 6%, transparent);
 }
 
 .modpack-content-name {
@@ -641,7 +709,7 @@ select option:checked {
     min-width: 0;
     font-size: 0.9rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--nh-fg);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -660,7 +728,7 @@ select option:checked {
 .modpack-content-version {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--nh-fg);
 }
 
 .modpack-content-filename {
@@ -687,7 +755,7 @@ select option:checked {
     border-radius: 10px;
     border: none;
     padding: 2px;
-    background-color: rgba(255, 255, 255, 0.15);
+    background-color: color-mix(in srgb, var(--nh-fg) 15%, transparent);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -695,7 +763,7 @@ select option:checked {
 }
 
 .modpack-content-toggle.on {
-    background-color: #22c55e;
+    background-color: var(--nh-ok);
     justify-content: flex-end;
 }
 
@@ -703,7 +771,7 @@ select option:checked {
     width: 15px;
     height: 15px;
     border-radius: 50%;
-    background-color: white;
+    background-color: var(--nh-fg);
 }
 
 .modpack-content-delete {
@@ -719,7 +787,7 @@ select option:checked {
 }
 
 .modpack-content-delete:hover {
-    color: #ff6b6b;
+    color: var(--nh-danger);
 }
 
 .actions-banner {
@@ -731,13 +799,17 @@ select option:checked {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 10px 7px;
+    padding: 8px 6px;
     border-radius: 999px;
-    background: var(--actions-banner-background);
+    /*
+     * A user or modpacker picks the background, so the rail brings its own dark surface and light
+     * edge.
+     */
+    background-color: color-mix(in srgb, var(--main-background-color) 78%, transparent);
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 22%, transparent);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--hr-color);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 8px 28px color-mix(in srgb, var(--nh-shade) 55%, transparent);
     opacity: 1;
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
@@ -752,12 +824,12 @@ select option:checked {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     border: none;
     background: transparent;
-    color: var(--text-color);
+    color: var(--nh-fg);
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.2s ease;
     text-decoration: none;
@@ -765,11 +837,178 @@ select option:checked {
 }
 
 .actions-banner-item:hover {
-    background-color: color-mix(in srgb, var(--main-color) 30%, transparent);
-    transform: scale(1.08);
+    background-color: color-mix(in srgb, var(--main-color) 55%, transparent);
+    transform: scale(1.06);
 }
 
-/* "Browse content" modal — search Modrinth and install straight into the instance. */
+/*
+ * Text sits on a scrim (bottom + left) so title, chips and Launch stay readable over any banner.
+ */
+.launch-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+        linear-gradient(0deg, color-mix(in srgb, var(--main-background-color) 94%, transparent) 0, color-mix(in srgb, var(--main-background-color) 55%, transparent) 34%, transparent 62%),
+        linear-gradient(90deg, color-mix(in srgb, var(--main-background-color) 70%, transparent) 0, transparent 55%);
+}
+
+.launch-head {
+    width: 60%;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/*
+ * The console / content panel is laid over the page from the right edge, so the title block keeps
+ * its size.
+ */
+.launch-panel-slot {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(860px, 75%);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.launch-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.launch-title h1 {
+    margin: 0;
+    font-family: inherit;
+    font-size: 40px;
+    line-height: 1.1;
+    font-weight: 700;
+    text-align: left;
+    text-shadow: 0 2px 18px color-mix(in srgb, var(--nh-shade) 45%, transparent);
+}
+
+.launch-title-icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    object-fit: cover;
+}
+
+.launch-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.launch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    box-sizing: border-box;
+    line-height: 1;
+    padding: 0 14px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--nh-fg);
+    background-color: color-mix(in srgb, var(--main-background-color) 55%, transparent);
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+button.launch-chip-btn { font-family: inherit; text-align: left; cursor: pointer; }
+button.launch-chip-btn:hover { border-color: var(--main-color); }
+.launch-chip .loader-label-icon { width: 14px; height: 14px; }
+.launch-chip .loader-label-icon { width: 24px; height: 24px; flex-shrink: 0; }
+.launch-chip-text { display: flex; flex-direction: column; gap: 3px; }
+.launch-chip-text b { font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.launch-chip-text small { font-size: 11px; font-weight: 500; opacity: 0.8; }
+
+.modpack-play-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 300px;
+    height: 68px;
+    padding: 0;
+    border: none;
+    border-radius: 12px;
+    background-color: var(--main-color);
+    color: #fff;
+    color: oklch(from var(--main-color) clamp(0, (l - 0.7) * -1000, 1) 0 0);
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: none;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.modpack-play-btn:hover:not(:disabled) {
+    background-color: var(--main-second-color);
+    transform: translateY(-1px);
+}
+
+.modpack-play-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+/* Launch is held back: the pack still lacks files the player has to get (opens the list). */
+.modpack-play-btn.warn {
+    background-color: var(--nh-warn);
+    color: oklch(from var(--nh-warn) clamp(0, (l - 0.7) * -1000, 1) 0 0);
+}
+.modpack-play-btn.warn:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--nh-warn) 85%, white);
+}
+
+/* Missing mods: what to download by hand. */
+.missing-body { display: flex; flex-direction: column; gap: 14px; }
+.missing-hint { margin: 0; font-size: 13px; line-height: 1.5; opacity: 0.8; }
+.missing-notice {
+    margin: 0; padding: 9px 12px; border-radius: 8px; font-size: 13px; line-height: 1.4;
+    background: color-mix(in srgb, var(--nh-ok) 18%, transparent);
+}
+.missing-notice.warn { background: color-mix(in srgb, var(--nh-warn) 20%, transparent); }
+.missing-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; }
+.missing-item {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    border-radius: var(--nh-radius-card); background: var(--control-background-color); border: 1px solid var(--border-subtle);
+}
+.missing-item-icon {
+    flex-shrink: 0; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 9px;
+    color: var(--nh-warn); background: color-mix(in srgb, var(--nh-warn) 18%, transparent);
+}
+.missing-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left; }
+.missing-item-text strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.missing-item-text small { font-size: 12px; opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.missing-footer { display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+.missing-footer-spacer { flex: 1; }
+.missing-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0;
+    padding: 9px 16px; border-radius: 9px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer;
+    color: var(--text-color); background: var(--control-background-color); border: 1px solid var(--border-subtle); box-shadow: none;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+.missing-btn svg { flex-shrink: 0; }
+.missing-btn:hover:not(:disabled) { border-color: var(--main-color); }
+.missing-btn.primary { color: #fff; color: oklch(from var(--main-color) clamp(0, (l - 0.7) * -1000, 1) 0 0); background: var(--main-color); border-color: transparent; }
+.missing-btn.primary:hover:not(:disabled) { background: var(--main-second-color); }
+.missing-btn.ghost { background: transparent; border-color: transparent; opacity: 0.8; }
+.missing-btn.ghost:hover:not(:disabled) { opacity: 1; border-color: var(--border-subtle); }
+.missing-btn:disabled { opacity: 0.6; cursor: default; }
+
 .modpack-browse-search {
     display: flex;
     gap: 8px;
@@ -820,16 +1059,18 @@ select option:checked {
     font-weight: 700;
 }
 
-/* "Filters" is a column that appears attached to this same modal's right side — not a second
-   modal, not a panel docked to the screen edge — so it shares the modal's own scroll container,
-   close button, and backdrop instead of layering another one on top. */
+/*
+ * Filters: a column attached to this modal's right side (not a second modal), sharing its scroll
+ * container, close button and backdrop.
+ */
 .modpack-browse-layout {
     display: flex;
     align-items: stretch;
     gap: 16px;
-    /* Both columns get their own scrollbar (see below) instead of scrolling together as one —
-       needs an actual height cap here since a flex row otherwise just grows to fit its tallest
-       child, leaving nothing for `overflow-y` on either side to act on. */
+    /*
+     * Both columns scroll on their own, which needs a height cap: a flex row otherwise grows to
+     * its tallest child.
+     */
     max-height: 62vh;
 }
 
@@ -846,23 +1087,30 @@ select option:checked {
     width: 220px;
     min-height: 0;
     overflow-y: auto;
-    padding: 12px 12px 12px 16px;
-    border-radius: 10px;
-    background-color: color-mix(in srgb, var(--second-background-color) 85%, var(--main-color) 15%);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 10%, transparent);
+    background-color: color-mix(in srgb, var(--main-background-color) 55%, transparent);
 }
 
 .modpack-browse-main::-webkit-scrollbar,
+.market-trending-scroll::-webkit-scrollbar,
 .modpack-browse-filters-sidebar::-webkit-scrollbar {
     width: 6px;
 }
 
 .modpack-browse-main::-webkit-scrollbar-thumb,
+.market-trending-scroll::-webkit-scrollbar-thumb,
 .modpack-browse-filters-sidebar::-webkit-scrollbar-thumb {
     background-color: var(--main-color);
     border-radius: 3px;
 }
 
 .modpack-browse-main::-webkit-scrollbar-track,
+.market-trending-scroll::-webkit-scrollbar-track,
 .modpack-browse-filters-sidebar::-webkit-scrollbar-track {
     background-color: transparent;
 }
@@ -870,34 +1118,40 @@ select option:checked {
 .modpack-browse-filters-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    font-weight: 600;
+    gap: 8px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
     color: var(--text-color);
 }
 
 .modpack-browse-filter-section {
-    margin-bottom: 14px;
+    margin: 0;
 }
 
 .modpack-browse-filter-section-toggle {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 8px;
     width: 100%;
-    padding: 0;
-    margin-bottom: 6px;
+    padding: 0 0 8px;
+    margin: 0;
     border: none;
     background: none;
+    box-shadow: none;
+    text-shadow: none;
     color: var(--text-color);
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.8;
     cursor: pointer;
 }
 
 .modpack-browse-filter-chevron {
-    display: inline-block;
-    font-size: 0.7rem;
+    flex-shrink: 0;
+    margin-left: auto;
     color: var(--text-secondary-color);
     transform: rotate(-90deg);
     transition: transform 0.15s;
@@ -914,30 +1168,40 @@ select option:checked {
 }
 
 .modpack-browse-filter-chip {
-    padding: 4px 10px;
-    border-radius: 50px;
-    border: 1px solid var(--hr-color);
-    background-color: var(--second-background-color);
-    color: var(--text-secondary-color);
-    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent);
+    background-color: color-mix(in srgb, var(--main-background-color) 60%, transparent);
+    color: var(--text-color);
+    font-size: 12.5px;
     text-transform: capitalize;
     cursor: pointer;
 }
 
+.modpack-browse-filter-chip:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .modpack-browse-filter-chip.active {
     border-color: var(--main-color);
-    background-color: var(--main-color);
-    color: white;
+    background-color: color-mix(in srgb, var(--main-color) 22%, transparent);
+    color: var(--text-color);
 }
 
 .modpack-browse-filters-clear {
-    width: 100%;
-    padding: 0.5rem;
-    border-radius: 6px;
-    border: 1px solid var(--hr-color);
+    margin-left: auto;
+    width: auto;
+    padding: 3px 10px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent);
     background-color: transparent;
     color: var(--text-secondary-color);
-    font-size: 0.8rem;
+    font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
 }
 
@@ -945,9 +1209,9 @@ select option:checked {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    /* No height cap/scroll of its own — Modal's own .modal-content is already the scroll
-       container (capped to 90vh); a second nested scroll region here just meant scrolling the
-       outer modal first to even reach this list's own scrollbar. */
+    /*
+     * No height cap/scroll of its own: Modal's `.modal-content` already scrolls (capped to 90vh).
+     */
 }
 
 .modpack-browse-row {
@@ -976,7 +1240,7 @@ select option:checked {
     height: 64px;
     border-radius: 12px;
     object-fit: cover;
-    background-color: rgba(255, 255, 255, 0.06);
+    background-color: color-mix(in srgb, var(--nh-fg) 6%, transparent);
 }
 
 .modpack-browse-icon.modpack-file-icon {
@@ -1020,7 +1284,7 @@ select option:checked {
 .modpack-browse-tag {
     padding: 2px 8px;
     border-radius: 50px;
-    background-color: rgba(255, 255, 255, 0.14);
+    background-color: color-mix(in srgb, var(--nh-fg) 14%, transparent);
     color: var(--text-color);
     font-size: 0.68rem;
     font-weight: 600;
@@ -1029,7 +1293,7 @@ select option:checked {
 }
 
 .modpack-browse-tag-more {
-    background-color: rgba(255, 255, 255, 0.06);
+    background-color: color-mix(in srgb, var(--nh-fg) 6%, transparent);
     color: var(--text-secondary-color);
 }
 
@@ -1061,6 +1325,26 @@ select option:checked {
     border: 1px solid var(--hr-color);
     color: var(--text-secondary-color);
     opacity: 1;
+}
+
+/* While installing, the button is the progress bar: --pct of it filled with the accent. */
+.modpack-browse-install.installing {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-width: 84px;
+    opacity: 1;
+    background-color: color-mix(in srgb, var(--main-color) 22%, transparent);
+    box-shadow: inset 0 0 0 1px var(--main-color);
+}
+.modpack-browse-install.installing::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: -1;
+    width: var(--pct, 0%);
+    background-color: var(--main-color);
+    transition: width 0.4s ease;
 }
 
 .modpack-browse-downloads {
@@ -1155,11 +1439,10 @@ select option:checked {
     cursor: pointer;
 }
 
-/* The select's own text is transparent (see `.modpack-browse-page-size-display`, which shows
-   "View: N" over the closed box instead) — but `<option>` inherits that `color: transparent`
-   too, so the dropdown's own popup needs it reset back explicitly or every option but the
-   currently-highlighted one (which the OS paints with its own selection foreground regardless
-   of this rule) renders invisible. */
+/*
+ * The select's text is transparent (`.modpack-browse-page-size-display` shows "View: N" over it)
+ * and `<option>` inherits that, so the popup's options need the colour reset.
+ */
 .modpack-browse-page-size option {
     color: var(--text-color);
     background-color: var(--second-background-color);
@@ -1178,7 +1461,6 @@ select option:checked {
     pointer-events: none;
 }
 
-/* "Open a mod" detail page — a search result row's click opens (see `ProjectDetailModal`). */
 .modpack-project-header {
     display: flex;
     align-items: flex-start;
@@ -1243,7 +1525,7 @@ select option:checked {
     padding: 10px 12px;
     margin: 0 0 10px 0;
     border-radius: 6px;
-    background-color: rgba(255, 255, 255, 0.06);
+    background-color: color-mix(in srgb, var(--nh-fg) 6%, transparent);
     overflow-x: auto;
     font-size: 0.8rem;
     white-space: pre-wrap;
@@ -1267,14 +1549,13 @@ select option:checked {
     text-underline-offset: 2px;
 }
 
-/* Launch button — same translucent dark glass as the Content manager/console panel
-   (`.client-log-panel`), not the default template button colors, so the launch screen's main
-   action reads as part of the same visual language as the rest of the panel chrome. */
+/* Same translucent dark glass as the Content manager/console panel (`.client-log-panel`). */
 .modpack-launch-btn {
-    background-color: rgba(10, 10, 12, 0.88);
+    border-radius: 12px;
+    background-color: color-mix(in srgb, var(--main-background-color) 60%, transparent);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 10%, transparent);
     color: var(--text-color);
 }
 
@@ -1302,15 +1583,19 @@ select option:checked {
     color: var(--text-secondary-color);
 }
 
+.modpack-session-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 .modpack-session-avatar {
     flex-shrink: 0;
     width: 32px;
     height: 32px;
-    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--main-color), rgba(255, 255, 255, 0.15));
+    background: linear-gradient(135deg, var(--main-color), color-mix(in srgb, var(--nh-fg) 15%, transparent));
     color: white;
     overflow: hidden;
 }
@@ -1360,11 +1645,11 @@ select option:checked {
     gap: 2px;
     padding: 4px;
     border-radius: 10px;
-    background-color: rgba(10, 10, 12, 0.96);
+    background-color: color-mix(in srgb, var(--main-background-color) 96%, transparent);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 10%, transparent);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--nh-shade) 40%, transparent);
     z-index: 10;
 }
 
@@ -1381,7 +1666,7 @@ select option:checked {
 }
 
 .modpack-session-menu button:hover {
-    background-color: rgba(255, 255, 255, 0.08);
+    background-color: color-mix(in srgb, var(--nh-fg) 8%, transparent);
 }
 
 .modpack-session-menu button.active {
@@ -1390,4 +1675,998 @@ select option:checked {
 
 .modpack-session-menu button.active .modpack-session-name {
     color: var(--main-color);
+}
+
+.modpack-session-menu button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.modpack-session-menu button:disabled:hover {
+    background-color: transparent;
+}
+
+.modpack-session-avatar-icon {
+    color: var(--text-secondary-color);
+    background: color-mix(in srgb, var(--nh-fg) 6%, transparent);
+}
+
+.modpack-session-strip-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.modpack-profile-manager-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.modpack-profile-manager-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.modpack-profile-manager-name {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.modpack-profile-manager-default {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid var(--hr-color);
+    background-color: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.modpack-profile-manager-default svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.modpack-profile-manager-default:hover:not(:disabled) {
+    border-color: var(--main-color);
+}
+
+.modpack-profile-manager-default.active {
+    cursor: default;
+    border-color: var(--main-color);
+    color: var(--main-color);
+}
+
+.modpack-profile-manager-delete {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid var(--hr-color);
+    background-color: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.modpack-profile-manager-delete svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.modpack-profile-manager-delete:hover:not(:disabled) {
+    border-color: var(--main-color);
+}
+
+/*
+ * A dim icon at this size reads as "missing": mute the colour instead of fading the whole button.
+ */
+.modpack-profile-manager-delete:disabled {
+    cursor: not-allowed;
+    color: var(--text-secondary-color);
+    border-color: var(--hr-color);
+}
+
+.modpack-profile-manager-create-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.modpack-profile-manager-create-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--hr-color);
+    background-color: var(--second-background-color);
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.modpack-profile-manager-create-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: none;
+    background-color: var(--main-color);
+    color: white;
+    cursor: pointer;
+}
+
+.modpack-profile-manager-create-btn svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.modpack-profile-manager-create-btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+/* Same as `.modpack-profile-manager-delete:disabled`: mute via colour, not opacity. */
+.modpack-profile-manager-create-btn:disabled {
+    cursor: not-allowed;
+    background-color: var(--second-background-color);
+    color: var(--text-secondary-color);
+}
+
+.modpack-profile-manager-create-btn-full {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 4px;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background-color: var(--main-color);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.modpack-profile-manager-create-btn-full:hover {
+    filter: brightness(1.1);
+}
+
+.modpack-profile-manager-online-btn {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--hr-color);
+    background-color: transparent;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.modpack-tile-badge-archived {
+    background-color: color-mix(in srgb, var(--nh-warn) 65%, var(--nh-shade));
+}
+
+.play-targets {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 4px;
+    overflow-x: auto;
+}
+
+.play-target {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 220px;
+    padding: 8px 14px;
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 12%, transparent);
+    border-radius: var(--nh-radius-control);
+    cursor: pointer;
+    color: var(--text-color);
+    font-size: 13px;
+    font-weight: 600;
+    background-color: color-mix(in srgb, var(--main-background-color) 60%, transparent);
+    backdrop-filter: blur(8px);
+}
+
+.play-target:disabled { opacity: 0.5; cursor: default; }
+.play-target.active { border-color: var(--main-color); background-color: color-mix(in srgb, var(--main-color) 30%, color-mix(in srgb, var(--main-background-color) 60%, transparent)); }
+.play-target-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.play-target-icon { position: relative; flex-shrink: 0; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.play-target-icon img { width: 100%; height: 100%; border-radius: 4px; object-fit: cover; image-rendering: pixelated; }
+.play-target-dot { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--main-background-color) 90%, transparent); box-sizing: content-box; }
+.play-target-dot.online { background: var(--nh-ok, #3ba55d); }
+.play-target-dot.offline { background: var(--nh-danger); }
+
+.screenshot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.screenshot-tile { position: relative; aspect-ratio: 16 / 9; padding: 0; border: none; border-radius: 8px; overflow: hidden; cursor: pointer; background-color: rgba(255, 255, 255, 0.06); }
+.screenshot-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.screenshot-tile { transition: transform 0.1s ease; }
+.screenshot-tile img { opacity: 0.5; filter: grayscale(60%); transition: filter 0.2s ease, opacity 0.2s ease; }
+.screenshot-tile:hover, .screenshot-tile.selected { transform: scale(1.05); z-index: 1; }
+.screenshot-tile:hover img, .screenshot-tile.selected img { opacity: 1; filter: grayscale(0%); }
+.screenshots-page { height: 100%; box-sizing: border-box; padding: 20px; overflow-y: auto; }
+/*
+ * Scales up to the full modal's width (max-height alone only shrinks). The height leaves 65px
+ * above and below to clear the 50px window-controls bar and avoid a scrollbar.
+ */
+.screenshot-large { display: block; width: 100%; height: calc(100vh - 132px); margin: 0 auto; object-fit: contain; }
+.zoom-box { position: relative; width: 100%; height: calc(100vh - 132px); overflow: hidden; user-select: none; }
+.zoom-box.zoomed { cursor: grab; }
+.zoom-box.dragging { cursor: grabbing; }
+.zoom-box img { display: block; width: 100%; height: 100%; object-fit: contain; transform-origin: center; }
+.zoom-box:not(.dragging) img { transition: transform 0.08s ease-out; }
+.zoom-controls { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 10px; background: color-mix(in srgb, var(--nh-shade) 65%, transparent); backdrop-filter: blur(6px); }
+.zoom-controls button { min-width: 32px; padding: 4px 8px; }
+.zoom-controls .zoom-level { min-width: 60px; font-variant-numeric: tabular-nums; }
+.screenshot-menu-time { padding: 2px 12px 6px; font-size: 0.75rem; opacity: 0.65; }
+
+.screenshot-tile-label { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 8px 6px; text-align: left; font-size: 0.75rem; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: linear-gradient(transparent, rgba(0, 0, 0, 0.75)); }
+.modpack-context-menu .screenshot-menu-pack { display: flex; align-items: center; gap: 10px; }
+.screenshot-menu-pack img { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+.screenshot-menu-pack > span { display: flex; flex-direction: column; text-align: left; min-width: 0; }
+.screenshot-menu-pack small { opacity: 0.65; }
+.modpack-context-menu .screenshot-menu-pack.has-banner { padding: 10px; background-size: cover; background-position: center; color: var(--nh-fg); }
+.screenshot-menu-pack.has-banner small { opacity: 0.85; }
+
+.loader-label {
+  display: inline-flex;
+  align-items: center;
+  /* Inline with text ("NeoForge · 1.21.1"): the 1.5em icon would otherwise push the baseline. */
+  vertical-align: middle;
+  gap: 0.35em;
+}
+.loader-label-icon {
+  width: 1.5em;
+  height: 1.5em;
+  flex: none;
+  background-color: currentColor;
+  mask: center / contain no-repeat;
+  -webkit-mask: center / contain no-repeat;
+}
+
+
+.pill-nav-count {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background-color: color-mix(in srgb, var(--nh-fg) 14%, transparent);
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+.pill-nav button.active .pill-nav-count { background-color: color-mix(in srgb, var(--nh-shade) 22%, transparent); }
+
+.content-manager-search {
+    flex: 1;
+    min-width: 120px;
+    max-width: 280px;
+    margin-left: auto;
+    padding: 6px 12px;
+    border-radius: 50px;
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent);
+    background-color: color-mix(in srgb, var(--nh-fg) 6%, transparent);
+    color: var(--text-color);
+    font-size: 0.8rem;
+    box-shadow: none;
+}
+.content-manager-search:focus { border-color: var(--main-color); }
+.content-manager-search + .content-manager-browse-btn { margin-left: 0; }
+
+.content-manager-list .modpack-content-row {
+    gap: 14px;
+    padding: 10px 14px;
+    border-radius: var(--nh-radius-control);
+    border-bottom: none;
+}
+.content-manager-list .modpack-content-row:hover { background-color: color-mix(in srgb, var(--nh-fg) 7%, transparent); }
+
+.modpack-content-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.content-manager-list .modpack-content-name { flex: none; }
+.content-manager-list .modpack-content-filename {
+    max-width: 100%;
+    font-size: 0.72rem;
+    font-family: var(--nh-font-mono);
+}
+
+.modpack-content-version {
+    flex-shrink: 0;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background-color: color-mix(in srgb, var(--nh-fg) 10%, transparent);
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+.modpack-content-size { width: 64px; text-align: right; }
+
+.modpack-content-toggle.on { background-color: var(--nh-ok); }
+.content-manager-list .modpack-content-delete { padding: 6px; border-radius: 8px; }
+.content-manager-list .modpack-content-delete:hover { background-color: color-mix(in srgb, var(--nh-danger) 16%, transparent); }
+
+/*
+ * Content manager toolbar stays on one row at any width: below ~760px the tabs tighten and drop
+ * counters.
+ */
+.client-log-panel { container-type: inline-size; }
+.content-manager-tabs { flex-wrap: nowrap; }
+.content-manager-tabs .pill-nav { flex-wrap: nowrap; flex-shrink: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.content-manager-tabs .pill-nav::-webkit-scrollbar { display: none; }
+.content-manager-tabs .content-manager-browse-btn { flex-shrink: 0; }
+@container (max-width: 760px) {
+    .content-manager-tabs { gap: 6px; padding: 8px; }
+    .content-manager-tabs .pill-nav button { padding: 6px 10px; }
+    .content-manager-tabs .pill-nav-count { display: none; }
+    .content-manager-search { min-width: 80px; }
+}
+
+/* Version picker for an online modpack. */
+.modpack-version-list { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow-y: auto; }
+.modpack-version-row {
+    display: flex; align-items: stretch; gap: 4px;
+    border-radius: var(--nh-radius-card);
+    background: var(--control-background-color); border: 1px solid var(--border-subtle);
+    color: var(--text-color);
+}
+.modpack-version-row:hover:not(.busy) { border-color: var(--main-color); }
+.modpack-version-pick {
+    flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    padding: 10px 14px; text-align: left; background: transparent; border: none; color: inherit; box-shadow: none;
+}
+/* One logo per service that has the build: the row installs from the first, a logo from its own. */
+.modpack-version-sources { display: flex; align-items: center; gap: 6px; padding-right: 10px; }
+.modpack-version-source {
+    width: 30px; height: 30px; padding: 0; display: grid; place-items: center; border-radius: 8px;
+    background: transparent; border: 1px solid var(--border-subtle); box-shadow: none; cursor: pointer;
+}
+.modpack-version-source:hover:not(:disabled) { border-color: var(--main-color); }
+.modpack-version-source img { width: 16px; height: 16px; object-fit: contain; }
+.modpack-version-main { display: flex; align-items: center; gap: 8px; }
+.modpack-version-main small, .modpack-version-meta { font-size: 12px; opacity: 0.65; }
+.modpack-version-type { font-size: 10px; text-transform: uppercase; padding: 2px 6px; border-radius: 999px; background: color-mix(in srgb, var(--nh-ok) 25%, transparent); }
+.modpack-version-type.beta { background: color-mix(in srgb, var(--nh-warn) 25%, transparent); }
+.modpack-version-type.alpha { background: color-mix(in srgb, var(--nh-danger) 25%, transparent); }
+
+/* Overall install progress: a thin line along the bottom edge of a tile. */
+.modpack-tile-progress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 1;
+    height: 4px;
+    background-color: var(--main-color);
+    transition: width 1.2s linear;
+}
+
+.modpack-tile-badge-service img { width: 16px; height: 16px; object-fit: contain; }
+.launch-chip-logo { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; }
+
+/* Modpack market page */
+.modpack-market { height: 100%; box-sizing: border-box; padding: 20px; display: flex; }
+.modpack-market .modpack-browse-layout { flex: 1; min-width: 0; max-height: none; }
+.modpack-market-title { margin: 0 0 4px; text-align: left; font-size: 28px; font-weight: 700; }
+
+.market-trending { display: flex; gap: 12px; }
+.market-feature {
+    position: relative; flex: 1; min-width: 0; min-height: 220px; overflow: hidden; cursor: pointer;
+    display: flex; align-items: flex-end; border-radius: var(--nh-radius-card);
+    background: var(--second-background-color); border: 1px solid var(--border-subtle);
+}
+.market-feature-bg { position: absolute; inset: -20%; width: 140%; height: 140%; object-fit: cover; filter: blur(28px) saturate(1.3); opacity: 0.55; }
+.market-feature::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, color-mix(in srgb, var(--main-background-color) 92%, transparent), transparent 80%); }
+.market-feature-body { position: relative; z-index: 1; padding: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 80%; }
+.market-feature-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--main-color); }
+.market-feature-body h2 { margin: 0; font-size: 26px; font-weight: 700; text-align: left; }
+.market-feature-body p { margin: 0; font-size: 13px; opacity: 0.8; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.market-feature-foot { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.market-trending-list { width: 190px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+.market-trending-item {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px; text-align: left; font-size: 13px;
+    border-radius: var(--nh-radius-card); background: var(--control-background-color);
+    border: 1px solid var(--border-subtle); color: var(--text-color); box-shadow: none;
+}
+.market-trending-item img, .market-trending-noicon { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--second-background-color); }
+.market-trending-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.market-service-logo { width: 14px; height: 14px; object-fit: contain; flex-shrink: 0; }
+.market-trending-item img.market-trending-service { width: 14px; height: 14px; border-radius: 3px; background: none; opacity: 0.85; }
+/* The service line over the big trending title: the page's normal text colour, not the accent. */
+.market-feature-service { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--text-color); }
+.market-feature-service-item { display: inline-flex; align-items: center; gap: 6px; }
+.market-trending-services { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-shrink: 0; }
+.market-tile-badges { position: absolute; top: 8px; left: 8px; z-index: 1; display: flex; gap: 4px; }
+.market-tile-badges .modpack-tile-badge { position: static; }
+.market-trending-item.active { border-color: var(--main-color); background: color-mix(in srgb, var(--main-color) 16%, transparent); }
+.modpack-market .modpack-browse-layout { min-height: 0; }
+.market-feature-bg.photo { inset: 0; width: 100%; height: 100%; filter: none; opacity: 0.85; }
+.modpack-browse-filter-chip .pill-nav-icon { width: 14px; height: 14px; margin-right: 4px; vertical-align: middle; }
+
+.market-section-title { margin: 0 0 8px; text-align: left; font-size: 13px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; }
+.market-feature-bg { opacity: 0; transition: opacity 0.9s ease; }
+.market-feature-bg.shown { opacity: 0.55; }
+.market-feature-bg.photo.shown { opacity: 0.85; }
+.market-feature-bg.photo:not(.shown) { opacity: 0; }
+
+/* Trending: the active item's background fills up as the time it has left on the big panel. */
+.market-trending-item { position: relative; overflow: hidden; }
+.market-trending-item > :not(.market-trending-fill) { position: relative; z-index: 1; }
+.market-trending-fill {
+    position: absolute; inset: 0 auto 0 0; width: 0; z-index: 0;
+    background: color-mix(in srgb, var(--main-color) 32%, transparent);
+    animation: market-trending-fill 8s linear forwards;
+}
+.market-trending.paused .market-trending-fill { animation-play-state: paused; }
+@keyframes market-trending-fill { to { width: 100%; } }
+
+/* Modpack page */
+.market-detail { height: 100%; box-sizing: border-box; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.market-detail > * { flex-shrink: 0; }
+.market-back { align-self: flex-start; background: none; border: none; box-shadow: none; padding: 4px 0; color: var(--text-color); opacity: 0.75; }
+.market-back:hover { opacity: 1; }
+.market-detail-hero { position: relative; overflow: hidden; min-height: 200px; display: flex; align-items: flex-end; border-radius: var(--nh-radius-card); background: var(--second-background-color); border: 1px solid var(--border-subtle); }
+.market-detail-hero-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.7; }
+.market-detail-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, color-mix(in srgb, var(--main-background-color) 94%, transparent), transparent 90%); }
+.market-detail-hero-body { position: relative; z-index: 1; width: 100%; box-sizing: border-box; display: flex; align-items: flex-end; gap: 16px; padding: 20px; }
+.market-detail-icon { width: 80px; height: 80px; border-radius: 16px; object-fit: cover; flex-shrink: 0; display: grid; place-items: center; box-shadow: 0 4px 16px color-mix(in srgb, var(--nh-shade) 50%, transparent); }
+.market-detail-title { flex: 1; min-width: 0; }
+.market-detail-title h1 { margin: 0 0 4px; text-align: left; font-size: 30px; font-weight: 700; }
+.market-detail-title p { margin: 0; font-size: 13px; opacity: 0.85; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.market-detail-install { width: auto; height: 48px; padding: 0 22px; flex-shrink: 0; }
+.market-detail-columns { display: flex; gap: 16px; align-items: flex-start; }
+.market-detail-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.market-detail-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.market-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.market-gallery-item { padding: 0; border: none; box-shadow: none; background: none; border-radius: 10px; overflow: hidden; aspect-ratio: 16 / 9; }
+.market-gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s; }
+.market-gallery-item:hover img { transform: scale(1.05); }
+.modpack-project-inline-image { max-width: 100%; vertical-align: middle; }
+.market-detail-hero-bg { opacity: 0; transition: opacity 0.9s ease; }
+.market-detail-hero-bg.shown { opacity: 0.7; }
+
+/* Previous/next buttons over the full-size picture viewer. */
+.viewer-arrow {
+    position: fixed; top: 50%; z-index: 150; width: 44px; height: 64px; padding: 0; margin-top: -32px;
+    display: grid; place-items: center; font-size: 34px; line-height: 1; border: none; border-radius: 10px;
+    color: var(--nh-fg); background: color-mix(in srgb, var(--nh-shade) 45%, transparent);
+    backdrop-filter: blur(6px); box-shadow: none;
+}
+.viewer-arrow:hover { background: color-mix(in srgb, var(--nh-shade) 70%, transparent); }
+.viewer-arrow-prev { left: 16px; }
+.viewer-arrow-next { right: 16px; }
+
+/* Market pages follow the window size (it is resizable now): container queries on the page itself. */
+
+/* Results are the instances page's tiles (.modpack-tile), as many per row as fit. */
+.modpack-market .modpack-browse-results { flex-direction: row; flex-wrap: wrap; gap: 14px; padding: 6px; }
+.modpack-market .modpack-browse-results > .modpack-option-hint { flex-basis: 100%; }
+.modpack-tile-meta-icon { vertical-align: -1px; }
+
+/*
+ * Market tiles keep a fixed slot in the grid. On hover/focus the tile grows downwards over the tiles
+ * below it (max-height, so it can animate) to show the description and facts; the banner stays the
+ * size of a normal tile.
+ */
+.market-tile-slot { position: relative; flex-shrink: 0; width: 220px; height: 130px; }
+.market-tile {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    width: auto;
+    height: auto;
+    max-height: 130px;
+    transition: max-height 0.22s ease, box-shadow 0.22s ease, transform 0.1s ease;
+}
+/* The same zoom as the instances page's tiles, pinned to the top so the growing tile stays aligned. */
+.market-tile:hover, .market-tile:focus-visible {
+    max-height: 340px;
+    z-index: 5;
+    transform: scale(1.05);
+    transform-origin: top center;
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--nh-shade) 55%, transparent);
+}
+.market-tile-head { position: relative; height: 130px; }
+.market-tile-more { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--text-color); }
+.market-tile-description {
+    margin: 0;
+    line-height: 1.35;
+    color: color-mix(in srgb, var(--text-color) 85%, transparent);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.market-tile-facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; align-items: center; }
+.market-tile-facts dt { opacity: 0.65; }
+.market-tile-facts dd { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.modpack-market .modpack-browse-filters-sidebar { width: clamp(190px, 22vw, 260px); }
+.market-feature { min-height: clamp(200px, 32vh, 360px); }
+/*
+ * Ten items are taller than the big panel, so the list takes the panel's height instead of
+ * stretching it: it has no height of its own, and its scroller fills it.
+ */
+.market-trending-list { position: relative; width: clamp(180px, 22vw, 260px); }
+.market-trending-scroll { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+.market-trending-item { flex-shrink: 0; }
+
+@media (max-width: 900px) {
+    .market-trending { flex-direction: column; }
+    .market-trending-list { width: auto; }
+    .market-trending-scroll { position: static; display: flex; flex-direction: row; overflow-x: auto; overflow-y: visible; }
+    .market-trending-item { max-width: 200px; }
+    .modpack-market .modpack-browse-layout { flex-direction: column; overflow-y: auto; }
+    .modpack-market .modpack-browse-main { overflow: visible; flex: none; }
+    .modpack-market .modpack-browse-filters-sidebar { width: auto; max-height: 220px; flex-shrink: 0; order: -1; }
+    .market-detail-columns { flex-direction: column; }
+    .market-detail-hero-body { flex-wrap: wrap; }
+    .market-detail-install { width: 100%; }
+}
+
+.market-feature-body h2 { font-size: clamp(26px, 2.4vw, 38px); }
+.market-feature-body p { font-size: clamp(13px, 1.1vw, 16px); }
+
+/* Tiles share the row evenly (a flex-wrap of fixed 220px slots leaves a gap at the end of each row). */
+.modpack-market .modpack-browse-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.modpack-market .modpack-browse-results > .modpack-option-hint { grid-column: 1 / -1; }
+.market-tile-slot { width: auto; }
+
+
+
+/* Playtime modal (`playtime.tsx`): the motion is CSS only, so "Interface animations" off stops it. */
+.pt-layout { display: flex; gap: 20px; min-height: 0; }
+.pt-main { flex: 1 1 58%; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.pt-side { flex: 0 0 300px; display: flex; flex-direction: column; gap: 14px; max-height: 60vh; overflow-y: auto; padding-right: 4px; }
+.pt-empty { margin: 0; opacity: 0.7; }
+
+.pt-card { animation: pt-in 0.38s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.pt-main > :nth-child(2) { animation-delay: 0.05s; }
+.pt-main > :nth-child(3) { animation-delay: 0.1s; }
+.pt-main > :nth-child(4) { animation-delay: 0.15s; }
+.pt-side > :nth-child(2) { animation-delay: 0.08s; }
+.pt-card > h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; }
+.pt-card > h4 svg { width: 16px; height: 16px; }
+@keyframes pt-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.pt-hero { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border-subtle); background: color-mix(in srgb, var(--main-color) 10%, transparent); }
+.pt-badge { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; border-radius: 50%; color: var(--main-color); background: color-mix(in srgb, var(--main-color) 16%, transparent); border: 1px solid color-mix(in srgb, var(--main-color) 45%, transparent); }
+.pt-badge svg { width: 26px; height: 26px; }
+.pt-badge svg .clock-min { animation: icon-around 1.1s 0.25s ease-in-out both; }
+.pt-badge svg .clock-hour { animation: icon-around 2.2s 0.25s ease-in-out both; }
+.pt-hero-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pt-hero-text b { font-size: 30px; line-height: 1.1; }
+.pt-hero-text small { opacity: 0.65; }
+
+.pt-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; animation: pt-in 0.38s 0.08s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.pt-stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-subtle); background: color-mix(in srgb, var(--nh-fg) 5%, transparent); transition: border-color 0.2s, transform 0.2s; }
+.pt-stat:hover { border-color: var(--main-color); transform: translateY(-2px); }
+.pt-stat b { font-size: 16px; }
+.pt-stat small { opacity: 0.65; font-size: 11px; }
+
+.pt-months { display: grid; grid-template-columns: repeat(26, 1fr); gap: 3px; font-size: 10px; opacity: 0.6; margin-bottom: 3px; }
+.pt-months span { white-space: nowrap; overflow: visible; }
+.pt-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); grid-template-columns: repeat(26, 1fr); gap: 3px; }
+.pt-cell { display: block; aspect-ratio: 1; border-radius: 3px; background: color-mix(in srgb, var(--nh-fg) 10%, transparent); }
+.pt-grid .pt-cell { animation: pt-pop 0.3s calc(var(--col, 0) * 16ms + 0.15s) cubic-bezier(0.2, 0.9, 0.3, 1.4) both; transition: transform 0.12s; }
+.pt-grid .pt-cell:hover { transform: scale(1.35); }
+@keyframes pt-pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: none; } }
+.pt-cell.lv-future { background: transparent; }
+.pt-cell.lv1 { background: color-mix(in srgb, var(--main-color) 30%, transparent); }
+.pt-cell.lv2 { background: color-mix(in srgb, var(--main-color) 55%, transparent); }
+.pt-cell.lv3 { background: color-mix(in srgb, var(--main-color) 80%, transparent); }
+.pt-cell.lv4 { background: var(--main-color); }
+.pt-scale { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 6px; font-size: 10px; opacity: 0.7; }
+.pt-scale .pt-cell { width: 10px; height: 10px; aspect-ratio: auto; }
+
+.pt-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin-bottom: 12px; background: color-mix(in srgb, var(--nh-fg) 12%, transparent); animation: pt-reveal 0.8s 0.3s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+@keyframes pt-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.pt-seg-menu { background: #8e8e93; }
+.pt-seg-world { background: #4caf50; }
+.pt-seg-server { background: var(--main-color); }
+.pt-seg-untracked { background: color-mix(in srgb, var(--nh-fg) 25%, transparent); }
+.pt-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pt-legend li { display: flex; align-items: center; gap: 10px; }
+.pt-legend li i { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.pt-legend li b { margin-left: auto; }
+.pt-legend li small { width: 4ch; text-align: right; opacity: 0.6; }
+
+.mc-list > h4 { margin-bottom: 6px; }
+.mc-entry { display: flex; gap: 12px; padding: 6px; border: 2px solid transparent; background: color-mix(in srgb, #000 35%, transparent); animation: pt-slide 0.35s calc(var(--i, 0) * 50ms + 0.2s) cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+@keyframes pt-slide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+.mc-entry + .mc-entry { margin-top: 2px; }
+.mc-entry:hover { border-color: color-mix(in srgb, #fff 60%, transparent); }
+.mc-entry img, .mc-entry-noicon { width: 48px; height: 48px; flex-shrink: 0; image-rendering: pixelated; }
+.mc-entry-noicon { background: color-mix(in srgb, #fff 12%, transparent); }
+.mc-entry-text { display: flex; flex-direction: column; min-width: 0; font-family: "Minecraft", "Consolas", monospace; font-size: 13px; line-height: 1.3; }
+.mc-entry-text b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; color: #fff; }
+.mc-entry-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #a0a0a0; }
+.mc-entry-text .mc-entry-time { color: #55ff55; }
+
+/* Startup-progress and crash modals (`launchStatus.tsx`); they reuse the `pt-*` cards and hero of the Playtime modal. */
+.modal-footer button.with-icon { display: inline-flex; align-items: center; gap: 6px; }
+.modal-footer button.with-icon svg { width: 16px; height: 16px; }
+.ls-layout { height: 100%; }
+.ls-stages { flex: 0 0 250px; }
+.ls-badge svg { animation: icon-wobble 2.4s ease-in-out infinite; }
+.ls-bar { height: 4px; border-radius: 2px; overflow: hidden; margin-bottom: 14px; background: color-mix(in srgb, var(--nh-fg) 12%, transparent); }
+.ls-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--main-color), var(--main-second-color)); background-size: 200% 100%; transition: width 0.5s ease; animation: ls-shimmer 1.6s linear infinite; }
+@keyframes ls-shimmer { to { background-position: -200% 0; } }
+.ls-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.ls-steps li { display: flex; align-items: center; gap: 12px; opacity: 0.45; transition: opacity 0.25s; }
+.ls-steps li.done { opacity: 0.85; }
+.ls-steps li.current { opacity: 1; font-weight: 600; }
+.ls-mark { width: 22px; height: 22px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--nh-fg) 25%, transparent); }
+.ls-mark svg { width: 13px; height: 13px; }
+.ls-steps li.done .ls-mark { background: var(--main-color); border-color: var(--main-color); color: #fff; }
+.ls-steps li.done .ls-mark svg .check-mark { animation: icon-draw-check 0.45s ease-out both; }
+.ls-steps li.current .ls-mark { border-color: var(--main-color); }
+.ls-spinner { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--main-color); border-right-color: transparent; animation: icon-around 0.8s linear infinite; }
+.ls-console { flex: 1 1 60%; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.ls-console > h4 small { margin-left: auto; opacity: 0.7; text-transform: none; letter-spacing: 0; }
+.ls-log { flex: 1; min-height: 280px; max-height: 50vh; margin: 0; overflow: auto; padding: 10px; font-size: 11px; line-height: 1.45; border-radius: 10px; white-space: pre; border: 1px solid var(--border-subtle); background: color-mix(in srgb, var(--main-background-color) 70%, #000); }
+.ls-line-err { color: var(--nh-danger); }
+.ls-line-warn { color: #e0b341; }
+
+.cr-layout { height: 100%; }
+.cr-main { flex: 1 1 62%; min-height: 0; }
+.cr-hero { background: color-mix(in srgb, var(--nh-danger) 10%, transparent); }
+.cr-badge { color: var(--nh-danger); background: color-mix(in srgb, var(--nh-danger) 16%, transparent); border-color: color-mix(in srgb, var(--nh-danger) 45%, transparent); }
+.cr-badge svg .warn-mark { animation: confirm-warn 0.6s 0.2s ease-in-out both; }
+.cr-hero .pt-hero-text b { font-size: 20px; }
+.cr-cause { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--nh-danger); }
+.cr-log { flex: 1; }
+.cr-log .ls-log { max-height: none; min-height: 0; }
+.cr-ai { flex: 0 0 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; animation-delay: 0.1s; }
+.cr-ai-lead { margin: 0; opacity: 0.85; }
+.cr-ai > h4 { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; font-size: 13px; }
+.cr-step { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; background: var(--main-color); color: #fff; }
+.cr-copy { justify-content: center; gap: 8px; }
+.cr-copy svg, .cr-link svg { width: 16px; height: 16px; }
+.cr-copy svg .check-mark { animation: icon-draw-check 0.45s ease-out both; }
+.cr-link { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-family: inherit; color: inherit; border: 1px solid var(--border-subtle); background: transparent; transition: border-color 0.2s, transform 0.2s; }
+.cr-link:hover { border-color: var(--main-color); transform: translateX(2px); }
+
+.launch-nihao-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    color: white;
+    background-color: color-mix(in srgb, var(--main-background-color) 75%, transparent);
+}
+.launch-nihao-notice img { width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0; }
+.launch-nihao-notice span { flex: 1; }
+.launch-nihao-notice button { flex-shrink: 0; }
+
+/* Player profiles page */
+.profiles-page { height: 100%; box-sizing: border-box; padding: 20px; display: flex; gap: 20px; overflow: hidden; color: var(--nh-fg); }
+.profiles-left { flex: 0 0 clamp(320px, 22vw, 520px); min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.profiles-stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px; border-radius: 14px; background-color: color-mix(in srgb, var(--main-background-color) 55%, transparent); }
+.profiles-stage h2 { margin: 4px 0 0; }
+.profiles-row { cursor: pointer; }
+.profiles-row.active { border-color: var(--main-color); }
+.profiles-wardrobe { flex: 1 1 260px; min-width: 260px; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 14px; background-color: color-mix(in srgb, var(--main-background-color) 55%, transparent); }
+.profiles-wardrobe h2 { margin: 0; }
+.profiles-title, .profiles-wardrobe h2 { display: flex; align-items: center; gap: 8px; margin: 0; }
+.profile-kind-icon { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; object-fit: contain; flex-shrink: 0; }
+.profiles-row .profile-kind-icon { width: 18px; height: 18px; margin: 0 4px; }
+.profiles-skins { display: flex; flex-wrap: wrap; gap: 12px; }
+.profiles-skin-tile { position: relative; width: 160px; height: 205px; overflow: hidden; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent); background-color: color-mix(in srgb, var(--main-background-color) 70%, transparent); }
+.profiles-skin-tile.active { border-color: var(--main-color); }
+.profiles-skin-view { width: 160px; height: 205px; overflow: hidden; }
+.profiles-skin-check { position: absolute; top: 8px; right: 8px; z-index: 2; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background-color: var(--main-color); color: white; }
+.profiles-skin-edit { position: absolute; left: 8px; bottom: 8px; z-index: 2; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; border-radius: 8px; }
+.profiles-edit { display: flex; flex-wrap: wrap; gap: 24px; }
+.profiles-edit-preview { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.profiles-edit-hint { display: flex; align-items: center; gap: 6px; opacity: 0.7; }
+.profiles-edit-controls { flex: 1 1 280px; display: flex; flex-direction: column; gap: 18px; }
+.profiles-edit-group { display: flex; flex-direction: column; gap: 8px; }
+.profiles-edit-group button { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; }
+.profiles-edit-radios { display: flex; gap: 10px; }
+.profiles-edit-radios label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.profiles-edit-capes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.profiles-edit-capes .profiles-edit-cape { align-self: stretch; aspect-ratio: 10 / 16; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 4px; border-radius: 8px; border: 2px solid transparent; overflow: hidden; }
+.profiles-edit-cape.active { border-color: var(--main-color); }
+.profiles-edit-cape img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.profiles-edit-cape small { font-size: 10px; opacity: 0.7; text-align: center; }
+.profiles-card-canvas { width: 160px; height: 340px; display: block; }
+.profiles-wardrobe-locked { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; opacity: 0.85; }
+.profiles-stage-wrap { position: relative; flex: 1; min-height: 0; width: 100%; }
+.profiles-stage-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; display: block; }
+.profiles-compact-row { display: flex; align-items: stretch; gap: 8px; }
+.profiles-compact-row .profiles-picker { flex: 1; max-width: none; min-width: 0; }
+.profiles-compact-row .modpack-session-btn { min-height: 48px; }
+.profiles-add { display: flex; flex-direction: column; gap: 8px; }
+.profiles-add.compact { flex-direction: row; }
+.profiles-add.compact > * { flex: 1; min-width: 0; }
+.profiles-drop-hint { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; border-radius: 14px; font-weight: 700; border: 2px dashed var(--main-color); background-color: color-mix(in srgb, var(--main-background-color) 80%, transparent); }
+.profiles-stage-label { position: absolute; left: 0; right: 0; bottom: 14px; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.7); }
+.profiles-stage-label h2 { margin: 0; }
+.screenshot-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.screenshot-filters { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.screenshot-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 13px; border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent); background-color: color-mix(in srgb, var(--main-background-color) 60%, transparent); }
+.screenshot-chip img { width: 20px; height: 20px; border-radius: 5px; object-fit: cover; }
+.screenshot-chip small { opacity: 0.65; }
+.screenshot-chip.active { border-color: var(--main-color); background-color: color-mix(in srgb, var(--main-color) 22%, transparent); }
+.screenshot-sort { flex-shrink: 0; display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 12px; font-size: 15px; font-weight: 600; }
+
+/* Market: search, headings, pager and filter controls share the launcher's rounded look. */
+.market-search { position: relative; margin-bottom: 16px; }
+.market-search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: 0.6; pointer-events: none; }
+.market-search input { width: 100%; box-sizing: border-box; padding: 12px 16px 12px 42px; border-radius: 12px; font-size: 15px; }
+.market-heading { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; text-align: left; font-size: 20px; font-weight: 700; }
+.market-heading svg { flex-shrink: 0; color: var(--main-color); }
+.market-pager { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.market-pager-total { font-size: 13px; opacity: 0.7; }
+.market-pager-controls { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.market-pager-controls button { min-width: 36px; height: 36px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 14px; }
+.market-pager-controls button.active { border-color: var(--main-color); background-color: var(--main-color); color: white; }
+.market-pager-controls button:disabled { opacity: 0.4; }
+.market-pager-ellipsis { padding: 0 4px; opacity: 0.6; }
+.modpack-browse-filter-section select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 32px 8px 12px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent);
+    background-color: color-mix(in srgb, var(--main-background-color) 60%, transparent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa0a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+    color: var(--text-color);
+    font-size: 13px;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+}
+.modpack-browse-filter-section select option { background-color: var(--second-background-color); color: var(--text-color); }
+
+/* Wide windows: the featured pack stays a banner-sized panel and the list beside it widens into columns instead of leaving the row empty. */
+@media (min-width: 901px) {
+    .market-trending-list { width: clamp(190px, 24vw, 560px); }
+    .market-trending-scroll { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); align-content: start; }
+    .market-feature { min-height: clamp(220px, 34vh, 480px); }
+}
+.market-flame { flex-shrink: 0; overflow: visible; transform-origin: 50% 90%; filter: drop-shadow(0 0 6px rgba(255, 130, 30, 0.7)); animation: flame-flicker 1.1s ease-in-out infinite; }
+.market-flame-core { transform-origin: 50% 90%; animation: flame-flicker 0.75s ease-in-out infinite reverse; }
+@keyframes flame-flicker {
+    0%, 100% { transform: scale(1, 1) rotate(-2deg); }
+    25% { transform: scale(1.06, 0.94) rotate(2deg); }
+    50% { transform: scale(0.94, 1.08) rotate(-1deg); }
+    75% { transform: scale(1.04, 0.97) rotate(2.5deg); }
+}
+/* Market tiles stack the gallery pictures and fade between them. */
+.market-tile .modpack-tile-background img { position: absolute; inset: 0; opacity: 0; transition: opacity 0.9s ease, filter 0.2s ease; }
+/* The base tile rule makes every image opaque on hover; here only the current one is. */
+.market-tile:hover .modpack-tile-background img, .market-tile:focus-visible .modpack-tile-background img { opacity: 0; }
+.market-tile .modpack-tile-background img.shown { opacity: 0.5; }
+.market-tile:hover .modpack-tile-background img.shown, .market-tile:focus-visible .modpack-tile-background img.shown { opacity: 1; }
+.market-feature-body h2 { line-height: 1.15; }
+
+/* A pack's page: uses the whole window; the hero, the side card and the text scale with it. */
+.market-detail-hero { min-height: clamp(220px, 30vh, 420px); }
+.market-detail-icon { width: clamp(80px, 6vw, 120px); height: clamp(80px, 6vw, 120px); }
+.market-detail-title h1 { font-size: clamp(30px, 2.4vw, 46px); line-height: 1.15; }
+.market-detail-title p { font-size: clamp(13px, 1vw, 17px); -webkit-line-clamp: 3; }
+.market-detail-columns { gap: 20px; }
+.market-detail-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.market-detail-stats > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--main-background-color) 55%, transparent); }
+.market-detail-stats b { font-size: 20px; }
+.market-detail-stats small, .market-detail-license small { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.65; }
+.market-detail-license { display: flex; flex-direction: column; gap: 2px; }
+.market-detail-license span { font-size: 13px; font-weight: 600; }
+.market-detail-about { padding: 18px 22px; border-radius: var(--nh-radius-card); background: var(--control-background-color); border: 1px solid var(--border-subtle); font-size: clamp(0.88rem, 0.5vw + 0.5rem, 1.05rem); }
+/* Wide windows: the pack's sections sit side by side, each in a panel with its own scroll. */
+.market-panels { display: grid; gap: 16px; align-items: start; }
+.market-panel { display: flex; flex-direction: column; min-width: 0; max-height: calc(100vh - 100px); border-radius: var(--nh-radius-card); background: var(--control-background-color); border: 1px solid var(--border-subtle); overflow: hidden; }
+.market-panel-head { flex-shrink: 0; display: flex; align-items: center; min-height: 44px; padding: 8px 16px; font-weight: 700; border-bottom: 1px solid var(--border-subtle); }
+.market-panel-body { min-height: 0; overflow-y: auto; padding: 16px; }
+.market-panel .market-detail-about { padding: 0; border: none; background: none; }
+.market-gallery-grid { grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 14vw, 300px), 1fr)); }
+
+/* The pack's numbers, tags and links sit in a glass card on the banner, above the Install button. */
+.market-detail.multi .market-detail-hero { min-height: clamp(280px, 34vh, 460px); }
+.market-detail-aside { position: relative; flex-shrink: 0; width: clamp(240px, 20vw, 360px); box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--nh-radius-card); background: color-mix(in srgb, var(--main-background-color) 72%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--border-subtle); }
+.market-detail-aside .market-detail-install { width: 100%; justify-content: center; }
+/* The panels scroll on their own, so the page itself does not. */
+.market-detail.multi { overflow: hidden; }
+.market-detail.multi .market-detail-columns { flex: 1; min-height: 0; flex-shrink: 1; }
+.market-detail.multi .market-detail-main, .market-detail.multi .market-panels { height: 100%; min-height: 0; }
+.market-detail.multi .market-panels { align-items: stretch; }
+.market-detail.multi .market-panel { max-height: none; height: 100%; }
+/* A panel scrolls its whole body: the versions list does not get a scrollbar of its own inside it. */
+.market-panel .modpack-version-list { max-height: none; overflow: visible; }
+.modpack-version-row.explicit:hover { border-color: inherit; }
+.modpack-version-row.explicit .modpack-version-pick { cursor: default; }
+.modpack-version-install { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; padding: 5px 12px; border-radius: 8px; font-size: 12px; }
+@media (max-width: 900px) {
+    .market-detail-aside { width: 100%; }
+}
+
+/* One panel: the pack's numbers, tags and links sit in a card beside the content. */
+.market-detail-side { position: sticky; top: 0; flex-shrink: 0; width: clamp(240px, 22vw, 300px); box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+@media (max-width: 900px) {
+    .market-detail-side { position: static; width: auto; order: -1; }
+}
+
+/* The pack's page shares the rounded, glassy look of the launcher's other pages and dialogs. */
+.market-back { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--nh-fg) 12%, transparent); background: color-mix(in srgb, var(--main-background-color) 55%, transparent); font-size: 13px; opacity: 1; }
+.market-back:hover { border-color: var(--main-color); }
+.market-detail-hero, .market-panel, .market-detail-about, .market-detail-side, .market-detail-aside { border-radius: 14px; border: 1px solid color-mix(in srgb, var(--nh-fg) 10%, transparent); }
+.market-detail-side, .market-detail-about, .market-panel { background: color-mix(in srgb, var(--main-background-color) 55%, transparent); }
+.market-detail-icon { border-radius: 18px; border: 1px solid color-mix(in srgb, var(--nh-fg) 18%, transparent); }
+.market-panel-head { font-size: 15px; }
+.market-detail-about { line-height: 1.6; }
+.market-gallery-item { border-radius: 12px; border: 1px solid color-mix(in srgb, var(--nh-fg) 10%, transparent); }
+.modpack-version-row { border-radius: 10px; }
+.market-detail-side .modpack-browse-tag, .market-detail-aside .modpack-browse-tag { background: none; border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent); }
+.market-detail-side .modpack-project-open-browser, .market-detail-aside .modpack-project-open-browser { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 12.5px; border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent); background: color-mix(in srgb, var(--main-background-color) 60%, transparent); color: var(--text-color); }
+.market-detail-side .modpack-project-open-browser:hover, .market-detail-aside .modpack-project-open-browser:hover { border-color: var(--main-color); }
+
+/* Scrollbars: a thin accent thumb on a clear track, no arrow buttons, wherever the plugin scrolls. */
+.market-panel-body::-webkit-scrollbar,
+.market-detail::-webkit-scrollbar,
+.modpack-version-list::-webkit-scrollbar,
+.screenshots-page::-webkit-scrollbar,
+.profiles-wardrobe::-webkit-scrollbar,
+.modpack-browse-main::-webkit-scrollbar,
+.market-trending-scroll::-webkit-scrollbar,
+.modpack-browse-filters-sidebar::-webkit-scrollbar { width: 8px; height: 8px; }
+.market-panel-body::-webkit-scrollbar-track,
+.market-detail::-webkit-scrollbar-track,
+.modpack-version-list::-webkit-scrollbar-track,
+.screenshots-page::-webkit-scrollbar-track,
+.profiles-wardrobe::-webkit-scrollbar-track,
+.modpack-browse-main::-webkit-scrollbar-track,
+.market-trending-scroll::-webkit-scrollbar-track,
+.modpack-browse-filters-sidebar::-webkit-scrollbar-track { background: transparent; }
+.market-panel-body::-webkit-scrollbar-thumb,
+.market-detail::-webkit-scrollbar-thumb,
+.modpack-version-list::-webkit-scrollbar-thumb,
+.screenshots-page::-webkit-scrollbar-thumb,
+.profiles-wardrobe::-webkit-scrollbar-thumb,
+.modpack-browse-main::-webkit-scrollbar-thumb,
+.market-trending-scroll::-webkit-scrollbar-thumb,
+.modpack-browse-filters-sidebar::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--main-color) 70%, transparent); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+.market-panel-body::-webkit-scrollbar-thumb:hover,
+.market-detail::-webkit-scrollbar-thumb:hover,
+.modpack-version-list::-webkit-scrollbar-thumb:hover,
+.screenshots-page::-webkit-scrollbar-thumb:hover,
+.profiles-wardrobe::-webkit-scrollbar-thumb:hover,
+.modpack-browse-main::-webkit-scrollbar-thumb:hover,
+.market-trending-scroll::-webkit-scrollbar-thumb:hover,
+.modpack-browse-filters-sidebar::-webkit-scrollbar-thumb:hover { background-color: var(--main-color); }
+.market-panel-body::-webkit-scrollbar-button,
+.market-detail::-webkit-scrollbar-button,
+.modpack-version-list::-webkit-scrollbar-button,
+.screenshots-page::-webkit-scrollbar-button,
+.profiles-wardrobe::-webkit-scrollbar-button,
+.modpack-browse-main::-webkit-scrollbar-button,
+.market-trending-scroll::-webkit-scrollbar-button,
+.modpack-browse-filters-sidebar::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+.modpack-project-quote { margin: 0 0 10px; padding: 4px 12px; border-left: 3px solid var(--main-color); opacity: 0.85; }
+/* Narrow windows: the trending list folds into a rail of icons on the featured pack (names in tooltips). */
+@media (max-width: 1200px) {
+    .market-trending { position: relative; display: block; }
+    .market-trending-list { position: absolute; top: 10px; right: 10px; bottom: 10px; z-index: 3; display: block; width: auto; }
+    .market-trending-scroll { position: static; display: flex; flex-direction: column; gap: 6px; max-height: 100%; padding: 6px; overflow-x: hidden; overflow-y: auto; border-radius: 12px; background: color-mix(in srgb, var(--main-background-color) 60%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); scrollbar-width: none; }
+    .market-trending-scroll::-webkit-scrollbar { display: none; }
+    .market-trending-item { flex-shrink: 0; width: 40px; height: 40px; max-width: none; padding: 4px; justify-content: center; }
+    .market-trending-title, .market-trending-services { display: none; }
+    .market-feature-body { padding-right: 72px; }
+}
+.launch-nihao-chip.has-update { border-color: var(--main-color); }
+.launch-nihao-update { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; padding: 5px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; background-color: var(--main-color); border-color: var(--main-color); color: white; }
+.launch-nihao-update:disabled { opacity: 0.6; }
+
+/* Share modpack: files on the left, where they go on the right. */
+.share-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .share-layout { grid-template-columns: minmax(0, 1fr); } }
+.share-card { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--nh-fg) 10%, transparent); background-color: color-mix(in srgb, var(--main-background-color) 55%, transparent); }
+.share-card-head { display: flex; flex-direction: column; gap: 10px; }
+.share-card-head b { font-size: 15px; }
+.share-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.share-chip { padding: 4px 12px; border-radius: 999px; font-size: 12.5px; border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent); background-color: color-mix(in srgb, var(--main-background-color) 60%, transparent); }
+.share-chip.active { border-color: var(--main-color); background-color: color-mix(in srgb, var(--main-color) 22%, transparent); }
+.share-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.share-search { position: relative; flex: 1; min-width: 140px; }
+.share-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: 0.6; pointer-events: none; }
+.share-search input { width: 100%; box-sizing: border-box; padding: 6px 10px 6px 30px; border-radius: 999px; font-size: 12.5px; }
+.share-files { display: flex; flex-direction: column; gap: 2px; max-height: 46vh; overflow-y: auto; }
+.share-row { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; overflow: hidden; border: 1px solid transparent; }
+.share-row:hover { background-color: color-mix(in srgb, var(--nh-fg) 6%, transparent); }
+.share-row.checked { border-color: color-mix(in srgb, var(--main-color) 45%, transparent); }
+.share-row > :not(.share-row-bar) { position: relative; z-index: 1; }
+.share-row-bar { position: absolute; inset: 0 auto 0 0; z-index: 0; background-color: color-mix(in srgb, var(--main-color) 12%, transparent); pointer-events: none; transition: width 0.2s ease; }
+.share-row-chevron { flex-shrink: 0; width: 20px; height: 20px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: none; background: none; box-shadow: none; color: var(--text-secondary-color); transform: rotate(-90deg); transition: transform 0.15s ease; }
+.share-row-chevron.open { transform: rotate(0deg); }
+span.share-row-chevron { visibility: hidden; }
+.share-row input { flex-shrink: 0; width: 16px; height: 16px; accent-color: var(--main-color); cursor: pointer; }
+.share-row-icon { flex-shrink: 0; display: flex; color: var(--text-secondary-color); }
+.share-row-name { flex: 1; min-width: 0; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.share-row-size { flex-shrink: 0; font-size: 12px; opacity: 0.65; font-variant-numeric: tabular-nums; }
+.share-field-hint { opacity: 0.7; line-height: 1.35; }
+.share-destinations { display: flex; flex-direction: column; gap: 8px; }
+.share-destination { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; text-align: left; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--nh-fg) 12%, transparent); background-color: color-mix(in srgb, var(--main-background-color) 60%, transparent); }
+.share-destination:hover:not(:disabled) { border-color: color-mix(in srgb, var(--main-color) 60%, transparent); }
+.share-destination.active { border-color: var(--main-color); background-color: color-mix(in srgb, var(--main-color) 18%, transparent); }
+.share-destination:disabled { opacity: 0.6; cursor: not-allowed; }
+.share-destination-icon { flex-shrink: 0; display: flex; color: var(--main-color); }
+.share-destination-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.share-destination-text small { opacity: 0.7; line-height: 1.35; }
+.share-destination-check { flex-shrink: 0; color: var(--main-color); }
+.share-publish { display: flex; flex-direction: column; gap: 12px; }
+.share-field { display: flex; flex-direction: column; gap: 6px; }
+.share-field label { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.75; }
+.share-segmented { display: inline-flex; align-self: flex-start; padding: 3px; gap: 3px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--nh-fg) 12%, transparent); }
+.share-segmented button { padding: 5px 14px; border-radius: 8px; border: none; background: none; }
+.share-segmented button.active { background-color: var(--main-color); color: white; }
+
+/* The launcher's main page shows the game played last as this banner. */
+.home-banner { cursor: pointer; height: 100%; min-height: 260px; box-sizing: border-box; display: flex; align-items: flex-end; padding: 28px; background-color: color-mix(in srgb, var(--main-background-color) 70%, var(--main-color)); background-size: cover; background-position: center; }
+.home-banner-body { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; max-width: 760px; }
+.home-banner-head { display: flex; align-items: center; gap: 16px; }
+.home-banner-head h2 { margin: 2px 0 0; font-size: clamp(26px, 3vw, 40px); }
+.home-banner-icon { flex-shrink: 0; width: 84px; height: 84px; border-radius: 18px; object-fit: cover; border: 1px solid color-mix(in srgb, var(--nh-fg) 18%, transparent); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
+.home-banner-kicker { display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; }
+.home-banner-play { display: inline-flex; align-items: center; gap: 8px; padding: 10px 28px; }
+
+/* Browse content: almost the whole window, its results in columns. */
+.modpack-browse-full { height: calc(95vh - 150px); max-height: none; }
+.modpack-browse-full .modpack-browse-filters-sidebar { width: clamp(220px, 20vw, 300px); }
+.modpack-browse-full .modpack-browse-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 8px; }
+.modpack-browse-full .modpack-browse-results > .modpack-option-hint { grid-column: 1 / -1; }
+.modpack-browse-categories { margin-bottom: 8px; }
+.modpack-browse-categories, .modpack-browse-services { display: flex; width: fit-content; max-width: 100%; }
+
+/* Services and search on one row: the search is one icon until clicked, always open on a wide window. */
+.modpack-browse-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.modpack-browse-bar .modpack-browse-services { margin-bottom: 0; flex-shrink: 0; }
+.modpack-browse-bar .market-search { display: none; flex: 1; min-width: 0; margin-bottom: 0; }
+.modpack-browse-search-toggle { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; margin-left: auto; }
+.modpack-browse-bar.open .modpack-browse-search-toggle { display: none; }
+.modpack-browse-bar.open .market-search { display: block; }
+@media (min-width: 1100px) {
+    .modpack-browse-bar .market-search { display: block; }
+    .modpack-browse-search-toggle { display: none; }
 }

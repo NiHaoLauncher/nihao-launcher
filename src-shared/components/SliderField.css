@@ -1,5 +1,3 @@
-/* ── Slider styling ────────────────────────────────────────── */
-
 .slider-field {
     width: 100%;
 }
@@ -31,38 +29,35 @@
     user-select: none;
 }
 
-/* Green fill */
 .slider-fill {
     position: absolute;
     top: 0;
     left: 0;
     height: 100%;
     border-radius: 4px 0 0 4px;
-    background: #4caf50;
+    background: var(--main-color);
     pointer-events: none;
     transition: width 0.05s linear;
 }
 
-/* Tick marks — taller than the track */
 .slider-tick {
     position: absolute;
     top: -6px;
     width: 2px;
     height: 20px;
-    background: rgba(255, 255, 255, 0.3);
+    background: color-mix(in srgb, var(--nh-fg) 30%, transparent);
     border-radius: 1px;
     transform: translateX(-50%);
     pointer-events: none;
 }
 
-/* Thumb (circle on the track) */
 .slider-thumb {
     position: absolute;
     top: 50%;
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #4caf50;
+    background: var(--main-color);
     border: 3px solid #2a2a2a;
     transform: translate(-50%, -50%);
     z-index: 2;
@@ -73,8 +68,9 @@
     cursor: grabbing;
 }
 
-/* Value badge — floats above the thumb; `left` is set inline (clamped, see SliderField.tsx)
-   so it always stays within the track's own bounds instead of overflowing the container. */
+/*
+ * Value badge: `left` is set inline (clamped, see SliderField.tsx) so it stays within the track.
+ */
 .slider-value-badge {
     position: absolute;
     top: -8px;
@@ -82,7 +78,7 @@
     padding: 0.35rem 0.65rem;
     border-radius: 8px;
     background: #2a2a2a;
-    color: #fff;
+    color: var(--nh-fg);
     font-size: 0.85rem;
     font-weight: bold;
     white-space: nowrap;
@@ -90,7 +86,6 @@
     pointer-events: none;
 }
 
-/* Min / Max labels */
 .slider-limits {
     display: flex;
     justify-content: space-between;

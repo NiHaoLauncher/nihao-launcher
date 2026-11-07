@@ -1,27 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { PagesBrowser } from './minecraftPages';
+import { HomeBanner } from './pages/homeBanner';
 import { MemoryRouter } from 'react-router-dom';
-import { LauncherBridgeContext } from '@shared';
-// `?inline` gets the CSS back as a plain string instead of Vite emitting a separate
-// `dist_ui/index.css` — this UI renders straight into the host's document (no shadow root,
-// see MinecraftUI below), and nothing on the host/Rust side ever loads a plugin's CSS file on
-// its own (`get_ui_bundle` only embeds the JS). Bundling the CSS into the JS itself is what
-// actually gets it in front of the browser at all, in every load path (prod bundle and the
-// dev server alike) instead of only whichever one happened to also fetch the separate file.
+import { BridgeStoreContext, LauncherBridgeContext, useBridge } from '@shared';
+import type { BridgeStore, LauncherBridge } from '@shared';
+// `?inline` returns the CSS as a string: this UI renders into the host's document (no shadow root)
+// and the host never loads a plugin's CSS file (`get_ui_bundle` embeds only the JS), so the CSS is
+// bundled into the JS and injected as a <style> tag.
 import minecraftCss from './minecraft.css?inline';
 
 export const LOADERS = [
   { value: "vanilla", label: "Vanilla" },
-  //{ value: "forge", label: "Forge" },
   { value: "fabric", label: "Fabric" },
-  //{ value: "quilt", label: "Quilt" },
   { value: "neoforge", label: "NeoForge" },
 ];
 
-// (Re)inserts this plugin's <style> tag on every connect — cheap, and means dev-mode's
-// unique-tag-per-reload flow always picks up the freshest CSS instead of leaving a stale
-// tag from an earlier reload sitting in <head> forever.
+// (Re)inserted on every connect so dev mode's unique tag per reload always gets the freshest CSS,
+// not a stale tag left in <head>.
 const STYLE_TAG_ATTR = "data-plugin-style";
 function injectStyles() {
   document.head.querySelector(`style[${STYLE_TAG_ATTR}="minecraft"]`)?.remove();
@@ -31,12 +27,41 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
+/** Re-renders the whole UI when the host's dictionary changes (`t()` reads a global, not React
+ *  state) — without remounting, so open modals and page state survive a language switch. */
+function Root() {
+  useBridge((b) => b.languageRevision);
+  const view = useBridge((b) => b.view);
+  const link = useBridge((b) => b.pendingDeepLink);
+  // The home banner hands over the modpack it shows: start on its page, not on the list. The link is
+  // not consumed here: in dev mode the host mounts a second element right after the first, which must
+  // find it too.
+  const [startAt] = useState(() => (link?.kind === "open-modpack" && link.data ? [{ pathname: "/play", state: link.data }] : undefined));
+  if (view === "home") return <HomeBanner />;
+  return (
+    <MemoryRouter initialEntries={startAt}>
+      <PagesBrowser />
+    </MemoryRouter>
+  );
+}
+
 class MinecraftUI extends HTMLElement {
   private root: ReactDOM.Root | null = null;
-  private _launcherBridge: any = null;
+  private _bridgeStore: BridgeStore | null = null;
+  private _launcherBridge: LauncherBridge | null = null;
 
-  set launcherBridge(val: any) {
-    console.log("SET LAUNCHER BRIDGE CALLED:", val);
+  set launcherBridgeStore(val: BridgeStore | null) {
+    if (val === this._bridgeStore) return;
+    this._bridgeStore = val;
+    this.render();
+  }
+
+  get launcherBridgeStore() {
+    return this._bridgeStore;
+  }
+
+  /** Legacy static bridge (older hosts) — superseded by `launcherBridgeStore`. */
+  set launcherBridge(val: LauncherBridge | null) {
     this._launcherBridge = val;
     this.render();
   }
@@ -46,14 +71,23 @@ class MinecraftUI extends HTMLElement {
   }
 
   connectedCallback() {
-    console.log("CONNECTED CALLBACK CALLED");
+    // A custom element defaults to `display: inline` (no box height), so `height: 100%` inside the
+    // UI would resolve to `auto` and long pages would grow past the window. Set display/size
+    // directly on the element (the dev tag changes per reload, see TAG_NAME). Must happen here,
+    // not in the constructor: the Custom Elements spec forbids a constructor adding attributes
+    // (`.style` writes one) and Chromium throws on `createElement`.
+    this.style.display = "block";
+    this.style.height = "100%";
+    this.style.minHeight = "0";
+    this.style.overflow = "hidden";
     injectStyles();
     this.render();
   }
 
   private render() {
-    console.log("RENDER CALLED, BRIDGE IS:", this._launcherBridge);
-    if (!this.isConnected) return;
+    // Nothing to show until the host hands over its bridge; rendering earlier would mount the UI
+    // without a module id and render it all again.
+    if (!this.isConnected || (!this._bridgeStore && !this._launcherBridge)) return;
 
     if (!this.root) {
       this.root = ReactDOM.createRoot(this);
@@ -61,11 +95,9 @@ class MinecraftUI extends HTMLElement {
 
     this.root.render(
       <React.StrictMode>
-        <LauncherBridgeContext.Provider value={this._launcherBridge}>
-          <MemoryRouter>
-            <PagesBrowser />
-          </MemoryRouter>
-        </LauncherBridgeContext.Provider>
+        <BridgeStoreContext.Provider value={this._bridgeStore}>
+          <LauncherBridgeContext.Provider value={this._launcherBridge}><Root /></LauncherBridgeContext.Provider>
+        </BridgeStoreContext.Provider>
       </React.StrictMode>
     );
   }
@@ -79,10 +111,8 @@ class MinecraftUI extends HTMLElement {
   }
 }
 
-// In production this is always 'minecraft-ui'. In dev mode the host generates a fresh,
-// unique tag per load (passed via this module's own URL query string) — custom elements
-// can never be re-registered under the same tag once defined, so without this, editing
-// the UI source would require a full app restart to ever see the change again.
+// Always 'minecraft-ui' in production; dev mode gets a fresh unique tag per load via the module
+// URL's query string, since a custom element can't be re-registered under the same tag.
 const TAG_NAME = new URL(import.meta.url).searchParams.get('tag') || 'minecraft-ui';
 
 if (!customElements.get(TAG_NAME)) {

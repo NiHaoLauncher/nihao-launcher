@@ -6,13 +6,16 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-API.md
+DOCUMENTATION/server/
 
 node_modules
 dist
 dist-ssr
 dist_ui
 *.local
+
+# Release files laid out by srcipts/release-pack.mjs
+srcipts/release/
 
 # Rust
 target/
@@ -43,3 +46,10 @@ src-tauri/logs/
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+# Signing secrets (the release key lives outside the repo; these are a safety net)
+*.pem
+*.pfx
+*.p12
+
+# Old copies kept by hand for reference; not part of the project
+design/backup/

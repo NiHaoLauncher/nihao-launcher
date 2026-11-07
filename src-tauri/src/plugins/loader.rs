@@ -15,20 +15,20 @@ unsafe impl Send for Plugin {}
 unsafe impl Sync for Plugin {}
 
 impl Plugin {
-    /// Resolved relative to the running exe's own directory (`get_program_path()`), not the
-    /// process's current working directory — CWD depends entirely on *how* you happened to
-    /// launch the exe (a terminal in some other folder, `cargo tauri dev`, double-clicking it
-    /// in Explorer, ...), so a plugin that resolved fine one way could silently vanish another.
+    /// Resolved relative to the exe's directory (`get_program_path()`), not the CWD, which depends
+    /// on how the exe was launched.
     fn resolve_path(plugin_name: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+        // The name comes from the UI: only a bare module id, never a path to some other DLL.
+        if plugin_name.is_empty() || !plugin_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+            return Err(format!("Invalid plugin name '{}'", plugin_name).into());
+        }
         let dll_name = format!("{}.{}", plugin_name, std::env::consts::DLL_EXTENSION);
         let program_dir = crate::get_program_path()?;
 
-        // Пошук у різних папках (для зручності розробки)
         let paths = [
             program_dir.join("plugins").join(&dll_name),
-            // Dev convenience: `cargo build` (workspace-wide) puts every member's build
-            // artifact straight into `target/debug/`, right next to `nihao-client.exe` itself
-            // — so a plugin built that way is already sitting beside the running exe.
+            // Dev convenience: workspace-wide `cargo build` puts every member's artifact in
+            // `target/debug/` next to `nihao-client.exe`.
             program_dir.join(&dll_name),
         ];
 
@@ -49,6 +49,20 @@ impl Plugin {
     pub fn load_from_path(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         unsafe {
             let library = Library::new(path)?;
+
+            // Before anything else is called through the library: is it built for this launcher?
+            let api_version: Symbol<unsafe extern "C" fn() -> u32> = library.get(b"plugin_api_version").map_err(|_| {
+                format!("'{}' has no plugin_api_version: it was built for an older launcher, rebuild it", path.display())
+            })?;
+            let theirs = api_version();
+            if theirs != launcher_common::API_VERSION {
+                return Err(format!(
+                    "'{}' is built for module interface version {theirs}, this launcher speaks {}: rebuild it",
+                    path.display(),
+                    launcher_common::API_VERSION
+                )
+                .into());
+            }
 
             let get_plugin: Symbol<unsafe extern "C" fn() -> PluginHandle> =
                 library.get(b"get_plugin")?;
@@ -129,5 +143,21 @@ impl Drop for Plugin {
         unsafe {
             (self.handle.vtable.drop)(self.handle.data);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Needs the module built first: `cargo build -p minecraft`, then
+    /// `cargo test -p nihao-client loads_the_built_module -- --ignored`.
+    #[test]
+    #[ignore]
+    fn loads_the_built_module_after_the_interface_version_check() {
+        let file = format!("{}minecraft{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/debug").join(file);
+        let plugin = Plugin::load_from_path(&path).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(plugin.game().name, "Minecraft");
     }
 }

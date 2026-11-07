@@ -19,7 +19,7 @@ pub struct DownloadInfo {
 
 #[derive(Debug, Clone)]
 pub enum InstallStatus {
-    CHECK, SKIP, INSTALL, WRITE, DELETE, EXTRACT
+    CHECK, SKIP, INSTALL, EXTRACT
 }
 impl InstallStatus {
     pub fn to_string(&self) -> String {
@@ -27,8 +27,6 @@ impl InstallStatus {
             Self::CHECK => "check".to_string(),
             Self::SKIP => "skip".to_string(),
             Self::INSTALL => "install".to_string(),
-            Self::WRITE => "write".to_string(),
-            Self::DELETE => "delete".to_string(),
             Self::EXTRACT => "extract".to_string(),
         }
     }
@@ -43,19 +41,94 @@ pub(super) async fn send_status_with_etaps(tx: &mpsc::Sender<DownloadInfo>, valu
         eprintln!("Receiver dropped: {:?}", value);
     }
 }
-pub async fn download(url:&str, path:PathBuf) -> Result<(),String> {
-    let response = reqwest::get(url).await
-        .map_err(|e|format!("Error install '{}' library: {}", url, e))?;
-    let content = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Error read: {}", e))?;
+/// One client for every download: reuses connections instead of a new TLS handshake per file.
+pub(super) static HTTP: std::sync::LazyLock<Client> = std::sync::LazyLock::new(|| {
+    Client::builder()
+        .user_agent(concat!("NiHao/minecraft-plugin/", env!("CARGO_PKG_VERSION"))) // Modrinth asks for an identifying one
+        .connect_timeout(STALL_TIMEOUT)
+        .build()
+        .unwrap_or_default()
+});
 
-    let mut file = File::create(path).await
+/// A download that makes no progress for this long fails instead of hanging the install (reqwest
+/// 0.11 has no per-read timeout, and a total timeout would cut off big files like the JDK).
+const STALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+pub async fn download(url:&str, path:PathBuf) -> Result<(),String> {
+    download_checked(url, path, "").await
+}
+
+/// Maven repos publish `<file>.sha1` next to every artifact: fetch it and verify the download.
+pub async fn download_maven(url:&str, path:PathBuf) -> Result<(),String> {
+    let sha1 = HTTP.get(format!("{url}.sha1")).send().await
+        .and_then(|r| r.error_for_status())
+        .map_err(|e| format!("Cannot get checksum of '{}': {}", url, e))?
+        .text().await
+        .map_err(|e| format!("Cannot get checksum of '{}': {}", url, e))?;
+    download_checked(url, path, sha1.split_whitespace().next().unwrap_or("")).await
+}
+
+/// Streams `url` to `path` (via `path.part`, renamed on success). Fails, leaving nothing at `path`,
+/// when the bytes' hash differs from `expected`: lowercase/uppercase hex, SHA-1 (40 chars) or
+/// SHA-256 (64 chars). An empty `expected` skips the check (some manifests don't carry one).
+pub async fn download_checked(url:&str, path:PathBuf, expected:&str) -> Result<(),String> {
+    download_checked_with(url, path, expected, &[]).await
+}
+
+/// `download_checked` sending `headers` too (e.g. an API key the host requires).
+pub async fn download_checked_with(url:&str, path:PathBuf, expected:&str, headers:&[(&str, String)]) -> Result<(),String> {
+    use futures_util::StreamExt;
+    use sha1::{Digest as _, Sha1};
+    use sha2::Sha256;
+
+    enum Hasher { Skip, Sha1(Sha1), Sha256(Sha256) }
+    let mut hasher = match expected.len() {
+        0 => Hasher::Skip,
+        40 => Hasher::Sha1(Sha1::new()),
+        64 => Hasher::Sha256(Sha256::new()),
+        _ => return Err(format!("Unsupported checksum for '{}': '{}'", url, expected)),
+    };
+
+    let stalled = |what: &str| format!("Error install '{}': {} stalled for {}s", url, what, STALL_TIMEOUT.as_secs());
+    let request = headers.iter().fold(HTTP.get(url), |request, (name, value)| request.header(*name, value));
+    let response = tokio::time::timeout(STALL_TIMEOUT, request.send()).await
+        .map_err(|_| stalled("server"))?
+        .map_err(|e|format!("Error install '{}' library: {}", url, e))?
+        .error_for_status()
+        .map_err(|e|format!("Error install '{}' library: {}", url, e))?;
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).await.map_err(|e| format!("Cannot create '{}': {}", parent.display(), e))?;
+    }
+    let mut part_name = path.as_os_str().to_owned();
+    part_name.push(".part");
+    let part = PathBuf::from(part_name);
+    let mut file = File::create(&part).await
         .map_err(|e|format!("Cannot create file(): {}", e))?;
-    file.write_all(&content).await
-        .map_err(|e|format!("Cannot write data to file: {}", e))?;
-    Ok(())
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = tokio::time::timeout(STALL_TIMEOUT, stream.next()).await.map_err(|_| stalled("download"))? {
+        let chunk = chunk.map_err(|e| format!("Error read: {}", e))?;
+        match &mut hasher {
+            Hasher::Skip => {}
+            Hasher::Sha1(h) => h.update(&chunk),
+            Hasher::Sha256(h) => h.update(&chunk),
+        }
+        file.write_all(&chunk).await
+            .map_err(|e|format!("Cannot write data to file: {}", e))?;
+    }
+    file.flush().await.map_err(|e|format!("Cannot write data to file: {}", e))?;
+    drop(file);
+    let actual = match hasher {
+        Hasher::Skip => expected.to_string(),
+        Hasher::Sha1(h) => format!("{:x}", h.finalize()),
+        Hasher::Sha256(h) => format!("{:x}", h.finalize()),
+    };
+    if actual != expected.to_lowercase() {
+        let _ = fs::remove_file(&part).await;
+        return Err(format!("Checksum mismatch for '{}'", url));
+    }
+    fs::rename(&part, &path).await
+        .map_err(|e|format!("Cannot write '{}': {}", path.display(), e))
 }
 
 pub async fn install_java(java_manifest: MinecraftInstanceJavaVersion, launcher: &mut MinecraftInstance, tx: &mpsc::Sender<DownloadInfo>) -> Result<(), String> {
@@ -65,11 +138,8 @@ pub async fn install_java(java_manifest: MinecraftInstanceJavaVersion, launcher:
             etap: "Java".to_string(), status: InstallStatus::CHECK,
             filename: format!("java {}", java_manifest.majorVersion),
         }).await;
-        //send_status_with_etaps(&tx, 0, 1, 5, 1,
-        //    &format!("java {}", java_manifest.majorVersion), MinecraftInstallStatus::CHECK
-        //).await;
 
-        let alive_path = launcher.path.runtime.join(java_manifest.component.clone()).join("bin/javaw.exe");
+        let alive_path = launcher.path.runtime.join(java_manifest.component.clone()).join(crate::platforms::GAME_JAVA);
         if alive_path.exists() {
             println!("Skip...");
             send_status_with_etaps(&tx, DownloadInfo { 
@@ -121,20 +191,20 @@ pub async fn install_libraries(launch_option:MinecraftInstanceOption, path:PathB
             total_etaps: 5, current_etaps: 2, total_files, current_file,
             etap: "Library".to_string(), status: InstallStatus::INSTALL, filename: library.name.clone()
         }).await;
-        if let Err(why) = process_library(lib_path, library.url.clone()).await {
+        if let Err(why) = process_library(lib_path, library.url.clone(), &library.sha1).await {
             return Err(why);
         };
     };
     Ok(())
 }
-pub async fn process_library(path:PathBuf, url:String) -> Result<(), String> {
+pub async fn process_library(path:PathBuf, url:String, sha1:&str) -> Result<(), String> {
     fs::create_dir_all(path.parent().ok_or(format!("Invalid path"))?)
         .await
         .map_err(|e| format!("Cannot create directory '{}': {}", path.display(), e))?;
-    if let Err(why) = download(&url, path).await {
-        return Err(format!("Library install error: {}", why).to_string());
-    };
-    Ok(())
+    // A library the loader's metadata gave no checksum for (Fabric's own jar) is checked against the
+    // .sha1 its maven repository publishes next to it, never taken unchecked.
+    let downloaded = if sha1.is_empty() { download_maven(&url, path).await } else { download_checked(&url, path, sha1).await };
+    downloaded.map_err(|why| format!("Library install error: {}", why))
 }
 
 pub async fn install_natives(launch_option:MinecraftInstanceOption, native_path:PathBuf, lib_path:PathBuf, tx:&mpsc::Sender<DownloadInfo>) -> Result<(), String> {
@@ -151,7 +221,7 @@ pub async fn install_natives(launch_option:MinecraftInstanceOption, native_path:
                 total_etaps: 5, current_etaps: 3, total_files, current_file,
                 etap: "Native".to_string(), status: InstallStatus::INSTALL, filename: native.name.clone()
             }).await;
-            if let Err(why) = process_library(n_path.clone(), native.url.clone()).await {
+            if let Err(why) = process_library(n_path.clone(), native.url.clone(), &native.sha1).await {
                 return Err(why);
             };
         }else{
@@ -167,13 +237,13 @@ pub async fn install_natives(launch_option:MinecraftInstanceOption, native_path:
         }).await;
         let content = fs::read(n_path).await
             .map_err(|e|e.to_string())?;
-        let _ = zip_extract::extract(Cursor::new(content), &native_path, false);
+        zip_extract::extract(Cursor::new(content), &native_path, false)
+            .map_err(|e| format!("Cannot extract native '{}': {}", native.name, e))?;
     };
     Ok(())
 }
 pub async fn install_assets(launch_option:MinecraftInstanceOption, path:PathBuf, tx:&mpsc::Sender<DownloadInfo>) -> Result<(), String> {
-    let client = Client::new();
-    let response = client.get(launch_option.asset_index.url)
+    let response = HTTP.get(launch_option.asset_index.url)
         .send()
         .await
         .map_err(|e| format!("Error getting 'asset_index': {}", e))?;
@@ -189,7 +259,7 @@ pub async fn install_assets(launch_option:MinecraftInstanceOption, path:PathBuf,
         let path_assets_index = path.join("indexes");
         fs::create_dir_all(path_assets_index.clone())
             .await
-            .map_err(|e|e.to_string()).unwrap();
+            .map_err(|e|e.to_string())?;
 
         let filename = path_assets_index.join(format!("{}.json", launch_option.assets));
         let mut file = File::create(filename).await
@@ -199,20 +269,29 @@ pub async fn install_assets(launch_option:MinecraftInstanceOption, path:PathBuf,
             eprintln!("Error writing to file: {}", e);
         }
 
-        for (current, (name, details)) in objects.iter().enumerate() {
-            if let Err(e) = process_assets(name.to_string(), details.clone(), path.clone(), current, count, &tx).await {
-                eprintln!("Error processing assets: {}", e);
-            }
+        // Parallel: there are thousands of tiny files, one at a time takes minutes.
+        use futures_util::StreamExt;
+        let results: Vec<Result<(), String>> = futures_util::stream::iter(objects.into_iter().enumerate())
+            .map(|(current, (name, details))| {
+                let (path, tx) = (path.clone(), tx.clone());
+                async move { process_assets(name, details, path, current, count, &tx).await }
+            })
+            .buffer_unordered(16)
+            .collect()
+            .await;
+        let failed = results.iter().filter(|r| r.is_err()).count();
+        if let Some(Err(e)) = results.into_iter().find(|r| r.is_err()) {
+            return Err(format!("{failed} asset(s) failed, first error: {e}"));
         }
         Ok(())
     }else{
-        Err("why".to_owned())
+        Err("Asset index has no 'objects'".to_owned())
     }
 }
 
 async fn process_assets(name:String, details: Value, path: PathBuf, current_file: usize, total_files: usize, tx:&mpsc::Sender<DownloadInfo>) -> Result<(), String> {
-    let a_hash = details["hash"].as_str().unwrap();
-    let a_subfolder = &a_hash[0..2];
+    let a_hash = details["hash"].as_str().ok_or("Asset entry has no hash")?;
+    let a_subfolder = a_hash.get(0..2).ok_or("Asset hash is too short")?;
     let a_url = format!("https://resources.download.minecraft.net/{}/{}", a_subfolder, a_hash);
     let a_file_path = format!("objects/{}/{}", a_subfolder, a_hash);
 
@@ -220,7 +299,6 @@ async fn process_assets(name:String, details: Value, path: PathBuf, current_file
         total_etaps: 5, current_etaps: 4, total_files, current_file,
         etap: "Assets".to_string(), status: InstallStatus::CHECK, filename: name.clone()
     }).await;
-    //// File is alive? ////
     let a_path = Path::new(&path).join(a_file_path);
     if a_path.exists() {
         send_status_with_etaps(&tx, DownloadInfo { 
@@ -229,7 +307,6 @@ async fn process_assets(name:String, details: Value, path: PathBuf, current_file
         }).await;
         return Ok(());
     }
-    //// Create dir and download file ////
     send_status_with_etaps(&tx, DownloadInfo { 
         total_etaps: 5, current_etaps: 4, total_files, current_file,
         etap: "Assets".to_string(), status: InstallStatus::INSTALL, filename: name
@@ -237,23 +314,22 @@ async fn process_assets(name:String, details: Value, path: PathBuf, current_file
     fs::create_dir_all(a_path.parent().ok_or(format!("Invalid path"))?)
         .await
         .map_err(|e| format!("Cannot create directory '{}': {}", a_path.display(), e))?;
-    if let Err(why) = download(&a_url, a_path).await {
+    if let Err(why) = download_checked(&a_url, a_path, a_hash).await {
         return Err(format!("Asset install error: {}", why).to_string());
     }
     Ok(())
 }
 pub async fn install_client(launch_option: MinecraftInstanceOption, path: PathBuf, tx: &mpsc::Sender<DownloadInfo>) -> Result<(), String> {
-    process_client(launch_option.client.url.clone(), path.clone(), tx).await?;
+    process_client(launch_option.client.url.clone(), path.clone(), &launch_option.client.sha1, tx).await?;
 
-    //// Other Clients ////
     for client in launch_option.other_client {
         let other_client_path = path.parent().unwrap().join(client.path.clone().unwrap());
-        process_client(client.url, other_client_path, tx).await
+        process_client(client.url, other_client_path, &client.sha1, tx).await
             .map_err(|e| format!("Fail other client: {}", e))?;
     };
     Ok(())
 }
-pub async fn process_client(url: String, path: PathBuf, tx: &mpsc::Sender<DownloadInfo>) -> Result<(), String> {
+pub async fn process_client(url: String, path: PathBuf, sha1: &str, tx: &mpsc::Sender<DownloadInfo>) -> Result<(), String> {
     let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("client.jar").to_string();
     send_status_with_etaps(tx, DownloadInfo {
         total_etaps: 5, current_etaps: 5, total_files: 1, current_file: 0,
@@ -273,20 +349,16 @@ pub async fn process_client(url: String, path: PathBuf, tx: &mpsc::Sender<Downlo
     fs::create_dir_all(path.parent().ok_or("Invalid path".to_string())?)
         .await
         .map_err(|e| format!("Cannot create directory: {}", e))?;
-    download(&url, path).await
+    download_checked(&url, path, sha1).await
         .map_err(|e| format!("Client install error: {}", e))?;
     Ok(())
 }
 
-/// Runs NeoForge's install processors (currently: applying the binary patch that turns the
-/// vanilla client jar into the NeoForge-patched one) — only called when
-/// `instance.version.core == MinecraftLoader::NEOFORGE`, and only *after* `install_client`
-/// has run, since the processor's input is the vanilla jar it just downloaded.
-///
-/// Re-reads `install_profile.json` from the location `version::neoforge` already cached it
-/// to (extracted from the installer jar during `get_launch_option`) instead of threading
-/// that data through the install pipeline — keeps every step self-contained, same as the
-/// rest of this file.
+/// Runs NeoForge's install processors (currently the binary patch that turns the vanilla client jar
+/// into the NeoForge-patched one). Only for `MinecraftLoader::NEOFORGE`, and only after
+/// `install_client`, whose vanilla jar is the processor's input. Re-reads `install_profile.json`
+/// from where `version::neoforge` cached it during `get_launch_option` instead of threading it
+/// through the pipeline.
 pub async fn run_neoforge_processors(
     instance: &MinecraftInstance,
     tx: &mpsc::Sender<DownloadInfo>,
@@ -311,8 +383,6 @@ pub async fn run_neoforge_processors(
         filename: "NeoForge patch".to_string(),
     }).await;
 
-    // The processor tools' own dependencies — not part of the game's classpath, just what
-    // the tools themselves need to run.
     if let Some(libs) = profile["libraries"].as_array() {
         for lib in libs {
             let path = lib["downloads"]["artifact"]["path"].as_str().unwrap_or("");
@@ -324,7 +394,8 @@ pub async fn run_neoforge_processors(
             if lib_path.exists() {
                 continue;
             }
-            process_library(lib_path, url.to_string()).await?;
+            let sha1 = lib["downloads"]["artifact"]["sha1"].as_str().unwrap_or("");
+            process_library(lib_path, url.to_string(), sha1).await?;
         }
     }
 
@@ -347,10 +418,9 @@ pub async fn run_neoforge_processors(
         };
 
         // Not every processor tool is a self-contained fatjar (older NeoForge's
-        // `installertools:2.1.2` isn't — it needs gson/asm/guava/etc. from
-        // `processor.classpath` explicitly on `-cp`, or it dies with a bare
-        // NoClassDefFoundError trying to load its own main class). Build the real
-        // classpath from `classpath` instead of assuming `-jar <tool>` is enough.
+        // `installertools:2.1.2` needs gson/asm/guava from `processor.classpath` on `-cp`, or it
+        // dies with NoClassDefFoundError), so build the real classpath instead of assuming `-jar
+        // <tool>` suffices.
         let classpath_coords: Vec<&str> = processor["classpath"]
             .as_array()
             .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
@@ -365,7 +435,7 @@ pub async fn run_neoforge_processors(
         if !classpath_entries.contains(&tool_jar) {
             classpath_entries.push(tool_jar.clone());
         }
-        let classpath_sep = if cfg!(windows) { ";" } else { ":" };
+        let classpath_sep = crate::platforms::CLASSPATH_SEPARATOR;
         let classpath_str = classpath_entries
             .iter()
             .map(|p| p.display().to_string())
@@ -412,10 +482,9 @@ pub async fn run_neoforge_processors(
     Ok(())
 }
 
-/// Finds a library entry by its maven coordinate (`processor.jar`/`.classpath` reference it
-/// against `install_profile.json`'s own `libraries` list) and resolves it to where it was
-/// downloaded — reusing the JSON-provided path instead of re-deriving one, so it can't
-/// mismatch whatever `run_neoforge_processors`'s download loop actually wrote to disk.
+/// Finds a library by maven coordinate in `install_profile.json`'s `libraries` and resolves it to
+/// where it was downloaded, reusing the JSON-provided path so it can't mismatch what
+/// `run_neoforge_processors` wrote.
 fn resolve_library_path(profile: &Value, library_dir: &Path, coord: &str) -> Option<PathBuf> {
     profile["libraries"].as_array()?.iter()
         .find(|lib| lib["name"].as_str() == Some(coord))
@@ -423,12 +492,9 @@ fn resolve_library_path(profile: &Value, library_dir: &Path, coord: &str) -> Opt
         .map(|p| library_dir.join(p))
 }
 
-/// Reads `Main-Class` out of a jar's `META-INF/MANIFEST.MF`. Needed because running a
-/// processor via an explicit `-cp <full classpath>` (required when the tool isn't a
-/// self-contained fatjar — see the classpath handling above) means Java no longer gets the
-/// main class for free from `-jar`'s own manifest lookup, and different processor tools
-/// (installertools, jarsplitter, AutoRenamingTool, binarypatcher) have different main
-/// classes, so it can't be hardcoded.
+/// Reads `Main-Class` from a jar's `META-INF/MANIFEST.MF`. Needed because a processor runs via
+/// explicit `-cp` (when it isn't a fatjar), so Java no longer gets the main class from `-jar`, and
+/// the tools (installertools, jarsplitter, AutoRenamingTool, binarypatcher) differ.
 async fn read_manifest_main_class(jar_path: &Path) -> Result<String, String> {
     let extract_dir = jar_path.with_file_name(format!(
         "{}_manifest",
@@ -465,15 +531,12 @@ fn resolve_neoforge_arg(
         // This pipeline only ever runs the client-relevant processors (see the `sides`
         // filter in `run_neoforge_processors`), so this is always "client".
         "{SIDE}" => "client".to_string(),
-        // No special case for `{PATCHED}` — it resolves through the generic `data.KEY.client`
-        // path below, straight to a real maven-layout path under the library dir (e.g.
-        // `net/neoforged/neoforge/{version}/neoforge-{version}-client.jar`). That's not an
-        // arbitrary choice: FML's own `NeoForgeClientLaunchHandler.getAdditionalMinecraftJarContent()`
-        // independently resolves this exact coordinate via `LibraryFinder.findPathForMaven`
-        // (driven by the `-DlibraryDirectory` system property this launcher already sets) to
-        // assemble its "minecraft" module — together with `net.minecraft:client::srg` and
-        // `::extra` (produced earlier in this same pipeline by jarsplitter/AutoRenamingTool).
-        // FML finds and combines all three itself; none of them need to be added to `-cp`.
+        // No special case for `{PATCHED}`: it resolves through the generic `data.KEY.client` path
+        // to a maven-layout path under the library dir (e.g.
+        // `net/neoforged/neoforge/{version}/neoforge-{version}-client.jar`). FML's
+        // `NeoForgeClientLaunchHandler` independently resolves that same coordinate via
+        // `LibraryFinder.findPathForMaven` (driven by `-DlibraryDirectory`) and combines it with
+        // `net.minecraft:client::srg`/`::extra` itself; none of them go on `-cp`.
         _ => {
             // A generic `{KEY}` resolves against install_profile.json's own `data.KEY.client`.
             if let Some(key) = arg.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
@@ -481,10 +544,9 @@ fn resolve_neoforge_arg(
                     return resolve_neoforge_data_value(value, instance, paths);
                 }
             }
-            // Processor args can also embed a `[maven:coord@ext]` reference directly
-            // (not only indirectly via a `{KEY}` -> data.KEY.client lookup) — e.g. MCP_DATA's
-            // `--input [net.neoforged:neoform:...@zip]`. Left unresolved, the literal
-            // bracketed string gets passed straight to the tool as a bogus file path.
+            // Processor args can embed a `[maven:coord@ext]` reference directly (e.g. MCP_DATA's
+            // `--input [net.neoforged:neoform:...@zip]`); unresolved, the literal string would be
+            // passed to the tool as a bogus path.
             if arg.starts_with('[') && arg.ends_with(']') {
                 return resolve_neoforge_data_value(arg, instance, paths);
             }
@@ -493,14 +555,11 @@ fn resolve_neoforge_arg(
     }
 }
 
-/// `install_profile.json`'s `data` entries come in three shapes: `[maven:coordinate]`
-/// (`group:artifact:version[:classifier][@extension]` — resolved under the shared library
-/// dir), `/path/inside/installer.jar` (already extracted alongside `install_profile.json`
-/// itself), or a quoted literal string. These are all *intermediate* artifacts produced and
-/// consumed between processor steps (the final patched-client output is handled separately,
-/// by key, in `resolve_neoforge_arg` above) — as long as a coordinate resolves to the same
-/// path every time it's referenced, the exact layout doesn't need to match any real maven
-/// repo convention.
+/// `install_profile.json` `data` entries are `[maven:coordinate]`
+/// (`group:artifact:version[:classifier][@extension]`, resolved under the shared library dir),
+/// `/path/inside/installer.jar` (already extracted next to `install_profile.json`) or a quoted
+/// literal. They are intermediate artifacts between processor steps (the final patched client is
+/// handled by key in `resolve_neoforge_arg`), so the layout only needs to be stable per coordinate.
 fn resolve_neoforge_data_value(
     value: &str,
     instance: &MinecraftInstance,
@@ -543,9 +602,8 @@ async fn neoforge_processor_java_path(instance: &MinecraftInstance) -> Result<St
     if let Some(p) = &instance.java.java_path {
         return Ok(p.clone());
     }
-    // The install pipeline always saves `launch.nihao` right after generating it and before
-    // any install::install_* step runs (see `MinecraftInstance::install_stream`), so by the
-    // time this runs (after install_client) it's guaranteed to already be on disk.
+    // `launch.nihao` is always saved right after generation and before any `install::install_*`
+    // step (see `install_stream`), so it is on disk by the time this runs.
     let version_dir = instance.path.versions.join(instance.version.filename());
     let launch_option = MinecraftInstanceOption::load_is_version_async(version_dir)
         .await
@@ -554,7 +612,61 @@ async fn neoforge_processor_java_path(instance: &MinecraftInstance) -> Result<St
         .path
         .runtime
         .join(&launch_option.java_version.component)
-        .join("bin/java.exe")
+        .join(crate::platforms::TOOL_JAVA)
         .display()
         .to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::AsyncReadExt;
+    use tokio::net::TcpListener;
+
+    async fn serve_once(status: &'static str, body: &'static str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/f", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 1024];
+            let _ = socket.read(&mut buf).await;
+            let reply = format!("HTTP/1.1 {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", status, body.len(), body);
+            let _ = socket.write_all(reply.as_bytes()).await;
+        });
+        url
+    }
+
+    const HELLO_SHA1: &str = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d";
+    const HELLO_SHA256: &str = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+    #[tokio::test]
+    async fn download_keeps_only_verified_files() {
+        let dir = std::env::temp_dir().join(format!("nihao-dl-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let bad_hash = dir.join("bad_hash");
+        assert!(download_checked(&serve_once("200 OK", "hello").await, bad_hash.clone(), "00").await.is_err());
+        assert!(!bad_hash.exists() && !dir.join("bad_hash.part").exists());
+
+        let not_found = dir.join("not_found");
+        assert!(download_checked(&serve_once("404 Not Found", "nope").await, not_found.clone(), "").await.is_err());
+        assert!(!not_found.exists());
+
+        let good = dir.join("good");
+        download_checked(&serve_once("200 OK", "hello").await, good.clone(), HELLO_SHA1).await.unwrap();
+        assert_eq!(std::fs::read_to_string(&good).unwrap(), "hello");
+
+        let sha256 = dir.join("sha256");
+        download_checked(&serve_once("200 OK", "hello").await, sha256.clone(), HELLO_SHA256).await.unwrap();
+        let wrong_sha256 = dir.join("wrong_sha256");
+        assert!(download_checked(&serve_once("200 OK", "hello").await, wrong_sha256.clone(), &"0".repeat(64)).await.is_err());
+        assert!(!wrong_sha256.exists());
+
+        // Its folder doesn't exist yet (NeoForge's installer goes into one that is new per version).
+        let nested = dir.join("not/yet/there/file");
+        download_checked(&serve_once("200 OK", "hello").await, nested.clone(), HELLO_SHA1).await.unwrap();
+        assert_eq!(std::fs::read_to_string(&nested).unwrap(), "hello");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

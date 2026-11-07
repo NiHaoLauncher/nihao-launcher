@@ -1,7 +1,8 @@
-pub mod errors;
 pub mod ffi;
+pub mod files;
 
-pub use ffi::{make_plugin_handle, FfiBuffer, PluginHandle, RawPluginVTable};
+pub use ffi::{make_plugin_handle, FfiBuffer, PluginHandle, RawPluginVTable, API_VERSION};
+pub use files::{read_game_settings, write_atomic, GAME_SETTINGS_FILE_NAME};
 
 pub struct GameInfo {
     pub name: &'static str,
@@ -48,8 +49,7 @@ pub trait ToModuleResult {
     fn to_module_result(self) -> Result<serde_json::Value, String>;
 }
 
-// Універсальна реалізація для будь-якого Result<T, E>
-// де T можна перетворити в JSON, а E можна вивести як рядок
+// Blanket impl for any `Result<T, E>` where `T` serializes to JSON and `E` displays as a string.
 impl<T, E> ToModuleResult for Result<T, E>
 where
     T: serde::Serialize,
@@ -100,13 +100,9 @@ macro_rules! declare_service {
     (
         $( $func:ident ( $($arg:ident : $ty:ty),* ) ),*
     ) => {
-        // `None` means "method not recognized" (so `declare_module_call!`'s outer dispatch can
-        // fall through to try other handlers); `Some(Err(_))` is a real failure for a method
-        // this service *does* own (bad arguments, or the handler itself failing) and must
-        // propagate as-is rather than being mistaken for "not found" — see
-        // `declare_module_call!`'s `@item service` arm, which used to conflate the two by
-        // discarding any `Err` here, however it originated, into a generic "not found in
-        // module" that hid the real error.
+        // `None` = method not recognized (so `declare_module_call!` falls through to other
+        // handlers); `Some(Err(_))` is a real failure for a method this service owns and must
+        // propagate as-is, not be mistaken for "not found".
         pub fn service(method: &str, args: serde_json::Value) -> Option<Result<serde_json::Value, String>> {
             match method {
                 $(

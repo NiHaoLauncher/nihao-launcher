@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::Value;
@@ -18,26 +16,6 @@ pub struct Version {
 pub struct VersionManifest {
     pub versions: Vec<Version>,
 }
-pub async fn version_alive_async(version: String) -> Result<bool,String> {
-    let result = get_version_manifest_async(&version).await
-        .map_err(|e|e.to_string())?;
-    Ok(!result.is_null())
-}
-pub fn version_alive(version: String) -> Result<bool,String> {
-    let result = get_version_manifest(&version)
-        .map_err(|e|e.to_string())?;
-    Ok(!result.is_null())
-}
-pub fn get_manifest() -> Result<VersionManifest, String> {
-    let url = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-    let response = reqwest::blocking::get(url)
-        .map_err(|e| format!("Error getting 'version_manifest.json': {}", e))?;
-    
-    let manifest: VersionManifest = response
-        .json()
-        .map_err(|e| format!("Error reading JSON: {}", e))?;
-    Ok(manifest)
-}
 pub async fn get_manifest_async() -> Result<VersionManifest, String> {
     let url = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
     let client = Client::new();
@@ -52,21 +30,6 @@ pub async fn get_manifest_async() -> Result<VersionManifest, String> {
         .map_err(|e| format!("Error reading JSON: {}", e))?;
 
     Ok(manifest)
-}
-pub fn get_version_manifest(version: &str) -> Result<Value, String> {
-    if let Ok(manifest) = get_manifest() {
-        if let Some(data) = manifest.versions.iter().find(|v| v.id==version) {
-            let response: Value = reqwest::blocking::get(&data.url)
-                .map_err(|e|format!("Error get url with 'version_manifest.json': {}",e))?
-                .json()
-                .map_err(|e|format!("Error read json{}",e)).unwrap();
-            return Ok(response);
-        } else {
-            return Err(format!("Version '{}' not found in the manifest", version));
-        }
-    }else{
-        Err("Cannot 'version_manifest.json'".to_owned())
-    }
 }
 pub async fn get_version_manifest_async(version: &str) -> Result<Value, String> {
     if let Ok(manifest) = get_manifest_async().await {
@@ -83,21 +46,6 @@ pub async fn get_version_manifest_async(version: &str) -> Result<Value, String> 
         }
     } else {
         Err("Cannot get 'version_manifest.json'".to_owned())
-    }
-}
-pub async fn get_local_manifest_with_id_async(id:String, path:PathBuf) -> Result<Value, String> {
-    let manifest_path = path.join(id.clone()).join(format!("{}.json",id) );
-    match manifest_path.exists() {
-        true => {
-            let file_manifest = fs::read_to_string(manifest_path).await
-                .map_err(|e|e.to_string())?;
-            let result = serde_json::from_str(&file_manifest)
-                .map_err(|e|e.to_string())?;
-            Ok(result)
-        },
-        false => {
-            get_version_manifest_async(&id).await
-        }
     }
 }
 pub async fn get_local_manifest_async(launcher: &MinecraftInstance) -> Result<Value, String> {
@@ -136,7 +84,6 @@ fn parse_launch_option(manifest: Value, instance: &MinecraftInstance) -> Result<
     let client_sha1      = manifest["downloads"]["client"]["sha1"].as_str().unwrap_or("").to_string();
     let jar_path         = instance.get_jar_path().display().to_string();
 
-    // Parse libraries & natives
     let mut libraries: Vec<MinecraftInstanceDownload> = Vec::new();
     let mut natives:   Vec<MinecraftInstanceDownload> = Vec::new();
 
@@ -154,7 +101,7 @@ fn parse_launch_option(manifest: Value, instance: &MinecraftInstance) -> Result<
                 });
             }
 
-            if let Some(native) = lib["downloads"]["classifiers"]["natives-windows"].as_object() {
+            if let Some(native) = lib["downloads"]["classifiers"][crate::platforms::NATIVES_CLASSIFIER].as_object() {
                 natives.push(MinecraftInstanceDownload {
                     name:     name.clone(),
                     path:     native.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
@@ -166,7 +113,6 @@ fn parse_launch_option(manifest: Value, instance: &MinecraftInstance) -> Result<
         }
     }
 
-    // Parse arguments (1.13+ format vs legacy minecraftArguments)
     let arguments = if let Some(args) = manifest["arguments"].as_object() {
         let game: Vec<String> = args.get("game")
             .and_then(|v| v.as_array())
@@ -196,4 +142,72 @@ fn parse_launch_option(manifest: Value, instance: &MinecraftInstance) -> Result<
         client: MinecraftInstanceDownloadCompact { url: client_url, sha1: client_sha1, path: Some(jar_path) },
         other_client: Vec::new(),
     })
-}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::library::path::MinecraftPath;
+
+    /// The parts of a Mojang version json that `parse_launch_option` reads.
+    fn manifest() -> Value {
+        serde_json::json!({
+            "id": "1.21.1",
+            "mainClass": "net.minecraft.client.main.Main",
+            "type": "release",
+            "assets": "17",
+            "assetIndex": { "url": "https://x/17.json", "sha1": "aa" },
+            "javaVersion": { "component": "java-runtime-delta", "majorVersion": 21 },
+            "downloads": { "client": { "url": "https://x/client.jar", "sha1": "bb" } },
+            "arguments": { "game": ["--username", "${auth_player_name}", { "rules": [], "value": "--demo" }], "jvm": ["-Xss1M"] },
+            "libraries": [
+                { "name": "com.google.code.gson:gson:2.10", "downloads": { "artifact": { "path": "com/google/code/gson/gson-2.10.jar", "sha1": "cc", "url": "https://x/gson.jar" } } },
+                { "name": "org.lwjgl:lwjgl:3.3", "downloads": {
+                    "artifact": { "path": "org/lwjgl/lwjgl-3.3.jar", "sha1": "dd", "url": "https://x/lwjgl.jar" },
+                    "classifiers": {
+                        "natives-windows": { "path": "org/lwjgl/lwjgl-3.3-natives-windows.jar", "sha1": "ee", "url": "https://x/w.jar" },
+                        "natives-linux": { "path": "org/lwjgl/lwjgl-3.3-natives-linux.jar", "sha1": "ff", "url": "https://x/l.jar" }
+                    } } }
+            ]
+        })
+    }
+
+    fn instance() -> MinecraftInstance {
+        MinecraftInstance::new(MinecraftPath::new(std::env::temp_dir().join("nihao-vanilla-test")), "Player")
+    }
+
+    #[test]
+    fn the_launch_option_takes_the_game_the_java_and_the_libraries_from_the_version_json() {
+        let option = parse_launch_option(manifest(), &instance()).unwrap();
+        assert_eq!(option.main_class, "net.minecraft.client.main.Main");
+        assert_eq!((option.java_version.component.as_str(), option.java_version.majorVersion), ("java-runtime-delta", 21));
+        assert_eq!((option.client.url.as_str(), option.client.sha1.as_str()), ("https://x/client.jar", "bb"));
+        assert_eq!((option.asset_index.url.as_str(), option.assets.as_str()), ("https://x/17.json", "17"));
+        assert_eq!(option.libraries.iter().map(|l| l.path.as_str()).collect::<Vec<_>>(), ["com/google/code/gson/gson-2.10.jar", "org/lwjgl/lwjgl-3.3.jar"]);
+        // Only this OS's natives.
+        assert_eq!(option.natives.len(), 1);
+        assert!(option.natives[0].path.ends_with(&format!("{}.jar", crate::platforms::NATIVES_CLASSIFIER)));
+        // Plain string arguments only: the ones with rules (a demo flag, an OS check) are left out.
+        let arguments = option.arguments.unwrap();
+        assert_eq!(arguments.game, ["--username", "${auth_player_name}"]);
+        assert_eq!(arguments.jvm, ["-Xss1M"]);
+    }
+
+    #[test]
+    fn a_version_json_without_a_main_class_is_an_error() {
+        let mut broken = manifest();
+        broken.as_object_mut().unwrap().remove("mainClass");
+        assert!(parse_launch_option(broken, &instance()).is_err());
+    }
+
+    #[test]
+    fn old_versions_carry_their_arguments_as_one_string() {
+        let mut old = manifest();
+        let object = old.as_object_mut().unwrap();
+        object.remove("arguments");
+        object.insert("minecraftArguments".into(), "--username ${auth_player_name} --version ${version_name}".into());
+        let arguments = parse_launch_option(old, &instance()).unwrap().arguments.unwrap();
+        assert_eq!(arguments.game, ["--username", "${auth_player_name}", "--version", "${version_name}"]);
+        assert!(arguments.jvm.is_empty());
+    }
+}

@@ -1,17 +1,14 @@
-//! FFI-safe boundary between the host and a dynamically loaded game plugin.
-//!
-//! A plugin used to hand the host a `*mut dyn GameSupport` — a trait-object fat pointer,
-//! which the Rust compiler itself flags as not FFI-safe (no stable/portable ABI across
-//! separately compiled dylibs). Everything here replaces that with a plain `#[repr(C)]`
-//! vtable of `extern "C" fn` pointers plus JSON-over-byte-buffer marshalling, which *is*
-//! FFI-safe. Plugin authors never touch this module directly — see [`crate::export_plugin`].
+//! FFI-safe boundary between the host and a dynamically loaded game plugin. A `*mut dyn
+//! GameSupport` fat pointer is not FFI-safe (no stable ABI across separately compiled dylibs), so
+//! this uses a plain `#[repr(C)]` vtable of `extern "C" fn` pointers plus JSON-over-byte-buffer
+//! marshalling. Plugin authors never touch this module; see [`crate::export_plugin`].
 
 use crate::{GameInfoOwned, GameSupport};
 use std::ffi::c_void;
 
-/// An owned byte buffer crossing the FFI boundary. Always freed by the same side that
-/// allocated it (the plugin), via [`RawPluginVTable::free_buffer`] — never by the host
-/// calling `Vec`'s destructor directly, since the two sides may use different allocators.
+/// An owned byte buffer crossing the FFI boundary. Always freed by the side that allocated it (the
+/// plugin) via [`RawPluginVTable::free_buffer`], never by the host's `Vec` destructor: the sides
+/// may use different allocators.
 #[repr(C)]
 pub struct FfiBuffer {
     ptr: *mut u8,
@@ -47,6 +44,12 @@ impl FfiBuffer {
     }
 }
 
+/// Version of the layout of [`PluginHandle`], [`RawPluginVTable`] and [`FfiBuffer`]. Raise it with any
+/// change to them. A module exports it (`export_plugin!`) and the launcher compares it before it
+/// calls anything else in the library, because a module built for another layout would be called
+/// through the wrong function pointers.
+pub const API_VERSION: u32 = 1;
+
 /// Plain function-pointer vtable — every field is individually FFI-safe (no trait objects).
 #[repr(C)]
 pub struct RawPluginVTable {
@@ -76,7 +79,6 @@ struct CallEnvelope {
     args: serde_json::Value,
 }
 
-/// Best-effort readable message out of a `catch_unwind` payload.
 fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
     if let Some(s) = payload.downcast_ref::<&str>() {
         s.to_string()
@@ -92,12 +94,9 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
 pub fn make_plugin_handle<T: GameSupport + 'static>(instance: T) -> PluginHandle {
     let data = Box::into_raw(Box::new(instance)) as *mut c_void;
 
-    // Every shim below wraps its real work in `catch_unwind`: a panic anywhere in plugin code
-    // (an unwrap, a poisoned lock, bad array indexing, ...) must never be allowed to unwind
-    // across this `extern "C"` boundary — doing so is undefined behavior, and in practice
-    // takes down the entire host process instead of just failing the one call that triggered
-    // it. Caught panics degrade to an error response (or an empty/not-found buffer where no
-    // richer error envelope exists) instead of a hard crash.
+    // Every shim wraps its work in `catch_unwind`: a panic must not unwind across this `extern
+    // "C"` boundary (undefined behavior, takes down the host). Caught panics become an error
+    // response (or an empty/not-found buffer where there is no error envelope).
 
     unsafe extern "C" fn game_info_shim<T: GameSupport>(data: *mut c_void) -> FfiBuffer {
         let this = unsafe { &*(data as *const T) };
@@ -197,6 +196,11 @@ pub fn make_plugin_handle<T: GameSupport + 'static>(instance: T) -> PluginHandle
 #[macro_export]
 macro_rules! export_plugin {
     ($ty:ty, $ctor:expr) => {
+        #[no_mangle]
+        pub extern "C" fn plugin_api_version() -> u32 {
+            $crate::API_VERSION
+        }
+
         #[no_mangle]
         pub extern "C" fn get_plugin() -> $crate::PluginHandle {
             $crate::make_plugin_handle::<$ty>($ctor)

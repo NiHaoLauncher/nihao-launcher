@@ -1,4 +1,3 @@
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -6,37 +5,39 @@ use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 
 use crate::get_program_path;
+use crate::release_lookup::{newest_first, parse_version, pick_zip, THIS_OS};
+use crate::release_sig;
 
-/// Updates are the newest release of this project; its first `.zip` asset is the payload. The same
-/// release is published on GitHub and on GitLab: whichever answers, or has the newer version, is
-/// used, so one of them being down (or lagging behind) never blocks updating.
+/// Updates are the newest release of this project; its first `.zip` asset is the payload and the
+/// `<zip name>.sig` asset next to it proves the maintainer made it (`release_sig`). The same release
+/// is on GitHub and GitLab: whichever answers (or has the newer version) is used, so one being down
+/// never blocks updating.
 const GITHUB_RELEASES_API: &str = "https://api.github.com/repos/BogdanCater/nihao-launcher/releases/latest";
 /// Project path `BogdanCater/nihao-launcher`, URL-encoded as the GitLab API wants it.
 const GITLAB_RELEASES_API: &str =
     "https://gitlab.com/api/v4/projects/BogdanCater%2Fnihao-launcher/releases/permalink/latest";
-/// A lookup or a download that makes no progress for this long counts as a failure, so the other
-/// source gets its turn instead of the launcher waiting forever.
+/// A download making no progress for this long counts as a failure, so the other source gets its
+/// turn.
 const STALL_TIMEOUT: Duration = Duration::from_secs(20);
+/// The release lookup runs before the launcher shows anything, so it gets less time: a network that
+/// swallows the request means "no update this time", not a twenty-second wait at every start.
+const LOOKUP_TIMEOUT: Duration = Duration::from_secs(6);
 const PENDING_CHANGELOG_FILE: &str = "nihao.changelog.json";
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct LauncherUpdateManifest {
-    pub lates_update: UpdateInfo,
-}
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct UpdateInfo {
     pub version: String,
     pub url: String,
-    pub source: String,
+    /// The release's `.sig` asset; empty when it has none (then the update is refused).
+    #[serde(default)]
+    pub signature_url: String,
+    /// The release text, shown as the changelog.
     #[serde(default)]
     pub description: String,
-    /// Optional promo image for the update; can be empty, a full URL, or a Google Drive file id.
-    #[serde(default)]
-    pub image: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -46,25 +47,8 @@ struct UpdateProgress {
     total: u64,
 }
 
-/// "v1.2.3" / "1.2.3-beta" -> [1, 2, 3]; non-numeric parts count as 0. Trailing zeros are dropped,
-/// so "1.2" and "1.2.0" compare equal.
-fn parse_version(v: &str) -> Vec<u64> {
-    let mut parts: Vec<u64> = v
-        .trim_start_matches('v')
-        .split('-')
-        .next()
-        .unwrap_or("")
-        .split('.')
-        .map(|p| p.parse().unwrap_or(0))
-        .collect();
-    while parts.last() == Some(&0) {
-        parts.pop();
-    }
-    parts
-}
-
 async fn get_json(url: &str) -> Result<Value, String> {
-    let client = Client::builder().timeout(STALL_TIMEOUT).build().map_err(|e| e.to_string())?;
+    let client = Client::builder().timeout(LOOKUP_TIMEOUT).build().map_err(|e| e.to_string())?;
     client
         .get(url)
         .header("User-Agent", "nihao-launcher") // GitHub rejects requests without one
@@ -78,36 +62,32 @@ async fn get_json(url: &str) -> Result<Value, String> {
         .map_err(|e| format!("invalid response: {e}"))
 }
 
-/// The download URL of the first `.zip` among `(file name, url)` pairs.
-fn pick_zip<'a>(mut assets: impl Iterator<Item = (&'a str, &'a str)>) -> Option<&'a str> {
-    assets.find(|(name, url)| name.ends_with(".zip") || url.ends_with(".zip")).map(|(_, url)| url)
-}
-
-fn release_info(tag: Option<&str>, url: Option<&str>, description: Option<&str>) -> Result<UpdateInfo, String> {
+fn release_info(tag: Option<&str>, assets: &[(&str, &str)], description: Option<&str>) -> Result<UpdateInfo, String> {
+    let (url, signature_url) = pick_zip(THIS_OS, assets).ok_or("latest release has no .zip for this OS")?;
     Ok(UpdateInfo {
         version: tag.ok_or("release has no tag_name")?.trim_start_matches('v').to_string(),
-        url: url.ok_or("latest release has no .zip asset")?.to_string(),
-        source: "Url".to_string(),
+        url: url.to_string(),
+        signature_url: signature_url.unwrap_or_default().to_string(),
         description: description.unwrap_or("").to_string(),
-        image: String::new(),
     })
 }
 
 async fn fetch_github() -> Result<UpdateInfo, String> {
     let release = get_json(GITHUB_RELEASES_API).await?;
     let assets = release["assets"].as_array().map(Vec::as_slice).unwrap_or_default();
-    let url = pick_zip(assets.iter().filter_map(|a| Some((a["name"].as_str()?, a["browser_download_url"].as_str()?))));
-    release_info(release["tag_name"].as_str(), url, release["body"].as_str())
+    let assets: Vec<_> = assets.iter().filter_map(|a| Some((a["name"].as_str()?, a["browser_download_url"].as_str()?))).collect();
+    release_info(release["tag_name"].as_str(), &assets, release["body"].as_str())
 }
 
 async fn fetch_gitlab() -> Result<UpdateInfo, String> {
     let release = get_json(GITLAB_RELEASES_API).await?;
     // `assets.links` are the files attached to the release; `assets.sources` is GitLab's own source archive, not ours.
     let links = release["assets"]["links"].as_array().map(Vec::as_slice).unwrap_or_default();
-    let url = pick_zip(links.iter().filter_map(|l| {
-        Some((l["name"].as_str()?, l["direct_asset_url"].as_str().or_else(|| l["url"].as_str())?))
-    }));
-    release_info(release["tag_name"].as_str(), url, release["description"].as_str())
+    let assets: Vec<_> = links
+        .iter()
+        .filter_map(|l| Some((l["name"].as_str()?, l["direct_asset_url"].as_str().or_else(|| l["url"].as_str())?)))
+        .collect();
+    release_info(release["tag_name"].as_str(), &assets, release["description"].as_str())
 }
 
 /// The latest release of every source that answered, newest first (GitHub first on a tie).
@@ -116,7 +96,6 @@ async fn fetch_releases() -> Result<Vec<(&'static str, UpdateInfo)>, String> {
     sort_releases(github, gitlab)
 }
 
-/// Fails only when no source answered, naming why each one failed.
 fn sort_releases(
     github: Result<UpdateInfo, String>,
     gitlab: Result<UpdateInfo, String>,
@@ -131,8 +110,7 @@ fn sort_releases(
     if releases.is_empty() {
         return Err(errors.join("; "));
     }
-    // Stable sort: on equal versions GitHub (pushed first) stays first.
-    releases.sort_by(|a, b| parse_version(&b.1.version).cmp(&parse_version(&a.1.version)));
+    newest_first(&mut releases, |r| &r.1.version); // on equal versions GitHub (pushed first) stays first
     Ok(releases)
 }
 
@@ -140,11 +118,18 @@ fn is_newer_than_running(update: &UpdateInfo) -> bool {
     parse_version(&update.version) > parse_version(env!("CARGO_PKG_VERSION"))
 }
 
+/// The newest release (GitHub or GitLab) whether or not it is newer than the running build: the
+/// launcher's "What's new" card shows its notes.
+#[tauri::command]
+pub async fn get_latest_release() -> Result<UpdateInfo, String> {
+    Ok(fetch_releases().await?.remove(0).1)
+}
+
 /// Returns the newest release (GitHub or GitLab) when it is newer than the running build, otherwise None.
 #[tauri::command]
-pub async fn check_for_update() -> Result<Option<LauncherUpdateManifest>, String> {
+pub async fn check_for_update() -> Result<Option<UpdateInfo>, String> {
     let (_, newest) = fetch_releases().await?.remove(0);
-    Ok(is_newer_than_running(&newest).then_some(LauncherUpdateManifest { lates_update: newest }))
+    Ok(is_newer_than_running(&newest).then_some(newest))
 }
 
 #[tauri::command]
@@ -162,12 +147,12 @@ pub async fn install_update(window: tauri::Window) -> Result<(), String> {
     let archive_path = cache_dir.join("launcher_update.cache");
     let staging = cache_dir.join("update_new");
 
-    // Newest first; if a source's download or archive turns out bad, the next source gets its turn.
-    // Everything is unpacked aside first, so a bad/truncated zip fails before any launcher file is touched.
+    // Newest first; if a source's download or archive is bad, the next gets its turn. Everything
+    // is unpacked aside first, so a bad zip fails before any launcher file is touched.
     let mut errors = Vec::new();
     let mut staged = None;
     for (host, update) in candidates {
-        match stage_update(&window, &update.url, &archive_path, &staging).await {
+        match stage_update(&window, &update, &archive_path, &staging).await {
             Ok(()) => {
                 staged = Some(update);
                 break;
@@ -193,9 +178,36 @@ pub async fn install_update(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
-/// Downloads the release archive and unpacks it into a fresh `staging` folder.
-async fn stage_update(window: &tauri::Window, url: &str, archive_path: &Path, staging: &Path) -> Result<(), String> {
-    download_with_progress(window, url, &archive_path.to_path_buf()).await?;
+/// A signature file is a few hundred bytes; anything bigger is not one.
+const MAX_SIGNATURE_BYTES: usize = 1024;
+
+async fn fetch_signature(url: &str) -> Result<String, String> {
+    if url.is_empty() {
+        return Err("this release has no .sig file next to its zip, so it cannot be trusted".to_string());
+    }
+    let client = Client::builder().timeout(STALL_TIMEOUT).build().map_err(|e| e.to_string())?;
+    let bytes = client
+        .get(url)
+        .header("User-Agent", "nihao-launcher")
+        .send()
+        .await
+        .and_then(|r| r.error_for_status())
+        .map_err(|e| format!("cannot get the release signature: {e}"))?
+        .bytes()
+        .await
+        .map_err(|e| format!("cannot get the release signature: {e}"))?;
+    if bytes.len() > MAX_SIGNATURE_BYTES {
+        return Err("the release signature file is too big".to_string());
+    }
+    String::from_utf8(bytes.to_vec()).map_err(|_| "the release signature file is not text".to_string())
+}
+
+/// Downloads the zip and unpacks it aside, but only if its signature matches: nothing from an
+/// unsigned or tampered download is ever unpacked, let alone run.
+async fn stage_update(window: &tauri::Window, update: &UpdateInfo, archive_path: &Path, staging: &Path) -> Result<(), String> {
+    let signature = fetch_signature(&update.signature_url).await?;
+    let digest = download_with_progress(window, &update.url, &archive_path.to_path_buf()).await?;
+    release_sig::verify(&update.version, &digest, &signature)?;
 
     emit_progress(window, "extracting", 0, 1);
     let (archive, staging) = (archive_path.to_path_buf(), staging.to_path_buf());
@@ -231,7 +243,6 @@ pub async fn take_pending_update_info() -> Result<Option<UpdateInfo>, String> {
     Ok(info)
 }
 
-/// Relaunches the launcher from its (now updated) executable and exits the current process.
 #[tauri::command]
 pub fn relaunch_app() {
     tauri::api::process::restart(&tauri::Env::default());
@@ -255,7 +266,8 @@ fn remove_old_files_in(dir: &Path) {
     }
 }
 
-async fn download_with_progress(window: &tauri::Window, url: &str, dest: &PathBuf) -> Result<(), String> {
+/// Saves `url` to `dest` and returns the SHA-256 of what arrived.
+async fn download_with_progress(window: &tauri::Window, url: &str, dest: &PathBuf) -> Result<[u8; 32], String> {
     let client = Client::builder().connect_timeout(STALL_TIMEOUT).build().map_err(|e| e.to_string())?;
     let response = tokio::time::timeout(STALL_TIMEOUT, client.get(url).send())
         .await
@@ -267,6 +279,7 @@ async fn download_with_progress(window: &tauri::Window, url: &str, dest: &PathBu
     let mut file = tokio::fs::File::create(dest).await.map_err(|e| e.to_string())?;
     let mut stream = response.bytes_stream();
     let mut downloaded: u64 = 0;
+    let mut hasher = Sha256::new();
 
     // No total timeout (the archive can be big), but a stalled connection must not hang forever.
     while let Some(chunk) = tokio::time::timeout(STALL_TIMEOUT, stream.next())
@@ -274,12 +287,13 @@ async fn download_with_progress(window: &tauri::Window, url: &str, dest: &PathBu
         .map_err(|_| "Download stalled".to_string())?
     {
         let chunk = chunk.map_err(|e| format!("Download interrupted: {e}"))?;
+        hasher.update(&chunk);
         file.write_all(&chunk).await.map_err(|e| e.to_string())?;
         downloaded += chunk.len() as u64;
         emit_progress(window, "downloading", downloaded, total);
     }
     file.flush().await.map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(hasher.finalize().into())
 }
 
 fn emit_progress(window: &tauri::Window, status: &str, current: u64, total: u64) {
@@ -289,25 +303,81 @@ fn emit_progress(window: &tauri::Window, status: &str, current: u64, total: u64)
     );
 }
 
-/// Moves every file under `staged` over the same relative path in `target`. Files locked by the
-/// running process (e.g. our own .exe) are renamed aside first (see `write_replacing`), since
-/// Windows allows renaming an open executable even though it can't be overwritten in place.
-fn apply_staged(staged: &Path, target: &Path) -> Result<(), String> {
-    for entry in std::fs::read_dir(staged).map_err(|e| e.to_string())?.flatten() {
-        let from = entry.path();
-        let to = target.join(entry.file_name());
-        if from.is_dir() {
-            std::fs::create_dir_all(&to).map_err(|e| e.to_string())?;
-            apply_staged(&from, &to)?;
+/// The files under `dir`, as paths relative to it.
+fn staged_files(dir: &Path, relative: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+    for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())?.flatten() {
+        let rel = relative.join(entry.file_name());
+        if entry.path().is_dir() {
+            staged_files(&entry.path(), &rel, out)?;
         } else {
-            let mut src = std::fs::File::open(&from).map_err(|e| e.to_string())?;
-            write_replacing(&to, &mut src)?;
+            out.push(rel);
         }
     }
     Ok(())
 }
 
-/// Extracts `archive_path` (a zip) into `target_dir`.
+fn set_aside_name(path: &Path) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".old");
+    path.with_file_name(name)
+}
+
+/// Puts the staged file `from` at `to`. A file already there is first renamed to `<name>.old`:
+/// Windows allows that for our own running .exe and the loaded module DLLs, though not an overwrite.
+/// `done` records what was installed, with whether an old file was set aside, for `undo`.
+fn install_one(from: &Path, to: &Path, done: &mut Vec<(PathBuf, bool)>) -> Result<(), String> {
+    if let Some(parent) = to.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("cannot create '{}': {e}", parent.display()))?;
+    }
+    let old = set_aside_name(to);
+    let set_aside = to.exists();
+    if set_aside {
+        let _ = std::fs::remove_file(&old);
+        std::fs::rename(to, &old).map_err(|e| format!("'{}' cannot be replaced: {e}", to.display()))?;
+    }
+    // The staging folder is inside the launcher's, so this is a rename; copy only if that is refused.
+    if let Err(e) = std::fs::rename(from, to).or_else(|_| std::fs::copy(from, to).map(|_| ())) {
+        if set_aside {
+            let _ = std::fs::rename(&old, to);
+        }
+        return Err(format!("cannot write '{}': {e}", to.display()));
+    }
+    done.push((to.to_path_buf(), set_aside));
+    Ok(())
+}
+
+fn undo(done: &[(PathBuf, bool)]) {
+    for (path, set_aside) in done.iter().rev() {
+        let _ = std::fs::remove_file(path);
+        if *set_aside {
+            let _ = std::fs::rename(set_aside_name(path), path);
+        }
+    }
+}
+
+/// Puts every file under `staged` over the same relative path in `target`, all or nothing: if any
+/// file cannot be put in place, the ones done so far are taken back out, so a launcher is never left
+/// half old and half new (a new module next to an old exe).
+fn apply_staged(staged: &Path, target: &Path) -> Result<(), String> {
+    let mut files = Vec::new();
+    staged_files(staged, Path::new(""), &mut files)?;
+    files.sort();
+    let mut done = Vec::new();
+    for rel in &files {
+        if let Err(e) = install_one(&staged.join(rel), &target.join(rel), &mut done) {
+            undo(&done);
+            return Err(e);
+        }
+    }
+    // Old files still locked (our own .exe) stay as `.old` and go at the next start.
+    for (path, set_aside) in &done {
+        if *set_aside {
+            let _ = std::fs::remove_file(set_aside_name(path));
+        }
+    }
+    Ok(())
+}
+
 fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<(), String> {
     let file = std::fs::File::open(archive_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
@@ -333,41 +403,12 @@ fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<(), String>
     Ok(())
 }
 
-fn write_replacing(out_path: &Path, entry: &mut impl Read) -> Result<(), String> {
-    match std::fs::File::create(out_path) {
-        Ok(mut f) => {
-            std::io::copy(entry, &mut f).map_err(|e| e.to_string())?;
-            Ok(())
-        }
-        Err(_) => {
-            let mut backup_name = out_path.file_name().unwrap_or_default().to_os_string();
-            backup_name.push(".old");
-            let backup_path = out_path.with_file_name(backup_name);
-            let _ = std::fs::remove_file(&backup_path);
-            std::fs::rename(out_path, &backup_path)
-                .map_err(|e| format!("'{}' is locked and cannot be replaced: {e}", out_path.display()))?;
-
-            let mut f = std::fs::File::create(out_path).map_err(|e| e.to_string())?;
-            std::io::copy(entry, &mut f).map_err(|e| e.to_string())?;
-            Ok(())
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn release(version: &str) -> UpdateInfo {
-        release_info(Some(version), Some("https://x/a.zip"), None).unwrap()
-    }
-
-    #[test]
-    fn version_ordering() {
-        assert!(parse_version("v0.10.0") > parse_version("0.9.9"));
-        assert!(parse_version("0.1.1") > parse_version("0.1.0"));
-        assert!(parse_version("0.1.0-beta") == parse_version("0.1.0"));
-        assert!(parse_version("1.2") == parse_version("1.2.0"));
+        release_info(Some(version), &[("a.zip", "https://x/a.zip")], None).unwrap()
     }
 
     #[test]
@@ -389,9 +430,51 @@ mod tests {
     }
 
     #[test]
-    fn picks_the_zip_not_other_assets() {
-        let assets = [("notes.txt", "https://x/notes.txt"), ("nihao.zip", "https://x/nihao.zip")];
-        assert_eq!(pick_zip(assets.into_iter()), Some("https://x/nihao.zip"));
-        assert_eq!(pick_zip([("a.exe", "https://x/a.exe")].into_iter()), None);
+    fn the_release_info_carries_the_zip_and_its_signature_or_none() {
+        let signed = release_info(Some("v1.0.0"), &[("nihao.zip", "https://x/n.zip"), ("nihao.zip.sig", "https://x/n.zip.sig")], Some("notes")).unwrap();
+        assert_eq!((signed.version.as_str(), signed.url.as_str(), signed.signature_url.as_str()), ("1.0.0", "https://x/n.zip", "https://x/n.zip.sig"));
+        assert!(release_info(Some("v1.0.0"), &[("n.zip", "https://x/n.zip")], None).unwrap().signature_url.is_empty());
+        assert!(release_info(Some("v1.0.0"), &[("notes.txt", "https://x/notes.txt")], None).is_err());
+    }
+
+    fn write(path: &Path, content: &str) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, content).unwrap();
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("nihao-update-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn an_update_replaces_and_adds_files_and_leaves_no_old_ones() {
+        let root = scratch("apply");
+        let (staged, target) = (root.join("staged"), root.join("app"));
+        write(&staged.join("launcher.exe"), "new exe");
+        write(&staged.join("plugins/mod.dll"), "new dll");
+        write(&target.join("launcher.exe"), "old exe");
+        apply_staged(&staged, &target).unwrap();
+        assert_eq!(std::fs::read_to_string(target.join("launcher.exe")).unwrap(), "new exe");
+        assert_eq!(std::fs::read_to_string(target.join("plugins/mod.dll")).unwrap(), "new dll");
+        assert!(!target.join("launcher.exe.old").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_update_that_fails_halfway_puts_every_old_file_back() {
+        let root = scratch("rollback");
+        let (staged, target) = (root.join("staged"), root.join("app"));
+        write(&staged.join("a.txt"), "new a");
+        write(&staged.join("x/y.txt"), "new y");
+        write(&target.join("a.txt"), "old a");
+        write(&target.join("x"), "a file where the update needs a folder");
+        assert!(apply_staged(&staged, &target).is_err());
+        assert_eq!(std::fs::read_to_string(target.join("a.txt")).unwrap(), "old a", "the first file is back as it was");
+        assert!(!target.join("a.txt.old").exists());
+        assert_eq!(std::fs::read_to_string(target.join("x")).unwrap(), "a file where the update needs a folder");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

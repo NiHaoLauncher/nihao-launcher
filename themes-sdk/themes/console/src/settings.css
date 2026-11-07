@@ -1,0 +1,1138 @@
+.settings-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: var(--text-color);
+}
+
+.settings-change + .settings-change::before {
+  content: "\00b7";
+  margin: 0 9px;
+  opacity: 0.4;
+}
+
+.settings-change b {
+  font-weight: 600;
+  color: var(--main-second-color);
+}
+
+.settings-change i {
+  font-style: normal;
+  opacity: 0.5;
+}
+
+.settings-change-from {
+  opacity: 0.55;
+}
+
+.settings-change-to {
+  color: var(--nh-fg);
+}
+
+.settings-tab h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.settings-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.settings-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--main-second-color);
+}
+
+.settings-field > label:not(.settings-checkbox-label) {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.settings-field > label:not(.settings-checkbox-label) .settings-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-option-text {
+  flex: 1;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.settings-field > label:not(.settings-checkbox-label) {
+  font-size: 0.8rem;
+  color: var(--text-secondary-color, #999);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.settings-field select,
+.settings-field input:not([type="checkbox"]),
+.settings-field textarea {
+  padding: 0.55rem 0.8rem;
+  font-size: 0.92rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--control-background-color);
+  color: var(--text-color);
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.settings-field select:hover,
+.settings-field input:not([type="checkbox"]):hover,
+.settings-field textarea:hover {
+  background-color: color-mix(in srgb, var(--nh-fg) 8%, transparent);
+}
+
+.settings-field select:focus,
+.settings-field input:not([type="checkbox"]):focus,
+.settings-field textarea:focus {
+  border-color: var(--main-color);
+}
+
+.settings-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.2rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5l5 5 5-5' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+}
+
+.settings-field select option {
+  background-color: var(--second-background-color);
+  color: var(--text-color);
+}
+
+.settings-field select {
+  border-radius: var(--nh-radius-control);
+  border: 1px solid color-mix(in srgb, var(--nh-fg) 20%, transparent);
+  background-color: transparent;
+}
+
+.settings-field select:hover {
+  border-color: color-mix(in srgb, var(--nh-fg) 40%, transparent);
+}
+
+.settings-field select:focus {
+  border-color: var(--main-second-color);
+}
+
+/*
+ * Option rows are flat lines: status square, icon, label and a plain slide switch (O / I) at the
+ * right. Outlines only, no fills, shadows or gradients.
+ */
+.settings-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  cursor: pointer;
+  padding: 0.6rem 0.9rem 0.6rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent);
+  border-radius: var(--nh-radius-control);
+  background: transparent;
+  color: var(--text-color);
+  font-size: 0.92rem;
+}
+
+.settings-checkbox-label:hover {
+  border-color: var(--main-second-color);
+}
+
+.settings-checkbox-label::before {
+  content: "";
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: color-mix(in srgb, var(--nh-fg) 22%, transparent);
+}
+
+.settings-checkbox-label:has(input:checked)::before {
+  background: var(--main-second-color);
+}
+
+.settings-checkbox-label .settings-icon {
+  width: 20px;
+  height: 20px;
+  color: color-mix(in srgb, var(--nh-fg) 45%, transparent);
+}
+
+.settings-checkbox-label:has(input:checked) .settings-icon {
+  color: var(--main-second-color);
+}
+
+.settings-option-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-checkbox-label input[type="checkbox"] {
+  order: 3;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 22px;
+  margin: 0;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--nh-fg) 30%, transparent);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.2s steps(4, end), background-color 0.2s steps(4, end);
+}
+
+.settings-checkbox-label input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 16px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--nh-fg) 70%, transparent);
+  transition: transform 0.2s steps(4, end);
+}
+
+.settings-checkbox-label input[type="checkbox"]::after {
+  content: "O";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 700 0.65rem/1 var(--nh-font-mono);
+  color: color-mix(in srgb, var(--nh-fg) 40%, transparent);
+}
+
+.settings-checkbox-label input[type="checkbox"]:checked {
+  border-color: var(--main-second-color);
+  background: color-mix(in srgb, var(--main-color) 22%, transparent);
+}
+
+.settings-checkbox-label input[type="checkbox"]:checked::before {
+  transform: translateX(22px);
+}
+
+.settings-checkbox-label input[type="checkbox"]:checked::after {
+  content: "I";
+  right: auto;
+  left: 9px;
+  color: var(--main-second-color);
+}
+
+.settings-checkbox-label input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--main-color);
+  outline-offset: 2px;
+}
+
+.settings-game-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.settings-game-tabs button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--control-background-color);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.settings-game-tabs button:hover {
+  background-color: color-mix(in srgb, var(--nh-fg) 10%, transparent);
+}
+
+.settings-game-tabs button.active {
+  border-color: var(--main-color);
+  background-color: var(--main-color);
+}
+
+.settings-empty {
+  font-size: 0.85rem;
+  color: var(--text-secondary-color);
+  font-style: italic;
+}
+
+.settings-save-btn {
+  padding: 0.55rem 1.4rem;
+  border-radius: 8px;
+  border: none;
+  background-color: var(--main-color);
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.settings-save-btn:hover:not(:disabled) {
+  background-color: var(--main-second-color);
+}
+
+.settings-save-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-online-status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--control-background-color);
+}
+
+.settings-service-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.settings-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: var(--text-secondary-color);
+}
+
+.settings-status-authenticated {
+  background-color: var(--nh-ok);
+}
+
+.settings-status-anonymous {
+  background-color: var(--nh-warn);
+}
+
+.settings-status-unavailable {
+  background-color: var(--nh-danger);
+}
+
+.settings-status-connecting {
+  background-color: var(--text-secondary-color);
+}
+
+.settings-online-status-text {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.settings-online-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-secondary-btn {
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--control-background-color);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.settings-secondary-btn:hover {
+  border-color: var(--main-color);
+  background-color: color-mix(in srgb, var(--nh-fg) 10%, transparent);
+}
+
+.settings-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--control-background-color);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.settings-icon-btn:hover {
+  border-color: var(--main-color);
+}
+
+.settings-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-manage-profile-btn {
+  align-self: flex-start;
+}
+
+.settings-form-error {
+  color: var(--nh-danger);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.settings-form-success {
+  color: var(--nh-ok);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+
+.os-tab {
+  gap: 0.75rem;
+}
+
+.os-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--nh-radius-card);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--control-background-color);
+  overflow: hidden;
+}
+
+.os-uplink {
+  padding: 1.25rem 1.3rem;
+}
+
+/* Registered as a real colour so a change of state *fades* the beacon colour instead of jumping. */
+@property --beacon {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: var(--nh-ok);
+}
+
+.os-card { transition: --beacon 0.7s ease; }
+
+.os-card-locked { --beacon: var(--nh-ok); }
+.os-card-standby { --beacon: var(--nh-warn); }
+.os-card-searching { --beacon: var(--main-second-color); }
+.os-card-lost { --beacon: var(--nh-danger); }
+
+.os-card > :not(.os-ecg) {
+  position: relative;
+  z-index: 1;
+}
+
+.os-ecg {
+  position: absolute !important;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%);
+}
+
+.os-ecg-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  margin-top: -22px;
+  background-color: var(--beacon);
+  opacity: 0.14;
+  --os-ecg-tile: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 180 44'><path d='M0 24H46l5-3 4 3h6l4-18 6 34 5-22 4 6h8l3-4 3 4H180' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/></svg>");
+  -webkit-mask: var(--os-ecg-tile) repeat-x 0 50% / 180px 44px;
+  mask: var(--os-ecg-tile) repeat-x 0 50% / 180px 44px;
+  animation: os-ecg-scroll 4.5s linear infinite;
+}
+
+.os-ecg.os-card-lost .os-ecg-line {
+  opacity: 0.1;
+  height: 2px;
+  margin-top: -1px;
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 16px);
+  mask: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 16px);
+  animation: os-lost-burst 11s linear infinite;
+}
+
+@keyframes os-lost-burst {
+  0%, 86%, 100% { opacity: 0.1; }
+  88% { opacity: 0.38; }
+  89.5% { opacity: 0.12; }
+  91% { opacity: 0.3; }
+  94% { opacity: 0.1; }
+}
+
+.os-burst {
+  position: absolute;
+  top: 50%;
+  left: -14ch;
+  margin-top: -8px;
+  display: none;
+  font: 700 14px/1 var(--nh-font-mono);
+  white-space: pre;
+  color: var(--beacon);
+  opacity: 0;
+}
+
+.os-burst > b {
+  display: inline-flex;
+  align-items: center;
+  font-weight: inherit;
+}
+
+.os-ecg.os-card-lost .os-burst,
+.os-ecg.os-card-locked .os-burst,
+.os-ecg.os-card-standby .os-burst {
+  display: block;
+  /*
+   * One pass per mount (TSX restarts it at random intervals); one character per step, visibility
+   * is a separate smooth fade.
+   */
+  animation:
+    os-burst-move 3.5s steps(80, end) var(--burst-delay, 0s) both,
+    os-burst-show 3.5s linear var(--burst-delay, 0s) both;
+}
+
+@keyframes os-burst-move {
+  from { left: -14ch; }
+  to { left: 100%; }
+}
+
+@keyframes os-burst-show {
+  0% { opacity: 0; }
+  4% { opacity: 0.95; }
+  96% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+
+.os-lanes {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.os-ecg.os-card-searching .os-ecg-line,
+.os-ecg.os-card-locked .os-ecg-line,
+.os-ecg.os-card-standby .os-ecg-line { display: none; }
+.os-ecg.os-card-searching .os-lanes,
+.os-ecg.os-card-locked .os-lanes,
+.os-ecg.os-card-standby .os-lanes { display: block; }
+
+.os-lanes > i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  font: 600 14px/1 var(--nh-font-mono);
+  color: var(--beacon);
+  opacity: 0.45;
+}
+
+.os-lanes > i:nth-child(1) { top: 24%; }
+.os-lanes > i:nth-child(2) { top: 46%; opacity: 0.6; }
+.os-lanes > i:nth-child(3) { top: 68%; }
+
+.os-lanes > i > b {
+  display: block;
+  width: max-content;
+  font-weight: inherit;
+  white-space: pre;
+  /* one repeat = --n characters; the lane hops exactly that far, one character per step */
+  animation: os-console-hop calc(var(--n) * var(--c-lane-step)) steps(var(--n)) infinite;
+}
+
+.os-lanes > i:nth-child(2) > b {
+  animation-direction: reverse;
+  animation-duration: calc(var(--n) * 0.09s);
+}
+
+.os-lanes > i:nth-child(3) > b {
+  animation-duration: calc(var(--n) * 0.19s);
+}
+
+.os-lanes .t-r, .os-burst .t-r { color: var(--nh-danger); }
+.os-lanes .t-g, .os-burst .t-g { color: color-mix(in srgb, var(--nh-fg) 55%, transparent); }
+.os-lanes .t-y, .os-burst .t-y { color: var(--nh-warn); }
+
+.os-ecg.os-card-locked .os-lanes > i,
+.os-ecg.os-card-standby .os-lanes > i { opacity: 0.17; }
+
+.os-ecg.os-card-locked .os-lanes > i > b { animation-duration: calc(var(--n) * 0.45s); }
+.os-ecg.os-card-locked .os-lanes > i:nth-child(2) > b {
+  animation-direction: normal;
+  animation-duration: calc(var(--n) * 0.62s);
+}
+.os-ecg.os-card-locked .os-lanes > i:nth-child(3) { display: none; }
+
+.os-ecg.os-card-standby .os-lanes > i > b { animation-duration: calc(var(--n) * 0.8s); }
+.os-ecg.os-card-standby .os-lanes > i:nth-child(2),
+.os-ecg.os-card-standby .os-lanes > i:nth-child(3) { display: none; }
+
+.os-ecg.os-card-locked .os-lanes .t-r, .os-ecg.os-card-locked .os-lanes .t-g, .os-ecg.os-card-locked .os-lanes .t-y,
+.os-ecg.os-card-standby .os-lanes .t-r, .os-ecg.os-card-standby .os-lanes .t-g, .os-ecg.os-card-standby .os-lanes .t-y {
+  color: inherit;
+}
+
+@keyframes os-console-hop {
+  to { transform: translateX(calc(var(--n) * -1ch)); }
+}
+
+@keyframes os-ecg-scroll {
+  to { -webkit-mask-position-x: -180px; mask-position-x: -180px; }
+}
+
+.os-ticks {
+  position: absolute;
+  inset: -2px;
+  display: none;
+}
+
+.os-beacon-lost .os-ticks,
+.os-beacon-searching .os-ticks { display: block; }
+
+.os-ticks > i {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 0;
+  height: 50%;
+  transform: rotate(var(--a));
+  transform-origin: 0 100%;
+}
+
+.os-ticks > i::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -1px;
+  width: 2px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--beacon);
+  opacity: 0.7;
+  animation: os-reach var(--s) steps(1) infinite var(--d);
+}
+
+@keyframes os-reach {
+  0%, 100% { height: 5px; opacity: 0.7; }
+  30% { height: 5px; opacity: 0.45; }
+  33% { height: 12px; opacity: 1; }
+  37% { height: 8px; opacity: 0.8; }
+  41% { height: 5px; opacity: 0.35; }
+  76% { height: 6px; opacity: 0.6; }
+  80% { height: 5px; opacity: 0.7; }
+}
+
+.os-beacon-searching .os-ticks > i::before {
+  animation: os-chase 1.2s steps(1) infinite;
+  animation-delay: calc(var(--i) * 0.075s);
+}
+
+@keyframes os-chase {
+  0% { height: 9px; opacity: 1; }
+  18% { height: 6px; opacity: 0.55; }
+  100% { height: 5px; opacity: 0.3; }
+}
+
+@keyframes os-core-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.8); opacity: 0.7; }
+}
+
+@keyframes os-fault {
+  0%, 100% { opacity: 0.8; transform: translate(0, 0); }
+  20% { opacity: 0.15; transform: translate(-1px, 0); }
+  24% { opacity: 0.9; transform: translate(1.5px, -1px); }
+  28% { opacity: 0.8; transform: translate(0, 0); }
+  71% { opacity: 0.3; transform: translate(1px, 1px); }
+  75% { opacity: 0.85; transform: translate(0, 0); }
+}
+
+.os-uplink-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.os-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--main-second-color);
+}
+
+.os-eyebrow-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.os-uplink-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--nh-fg);
+}
+
+.os-uplink-sub {
+  font-size: 0.85rem;
+  color: var(--text-secondary-color, #999);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.os-section-label {
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-secondary-color, #888);
+}
+
+.os-satellite-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.os-beacon {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--beacon);
+}
+
+.os-beacon-core {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--beacon);
+  box-shadow: 0 0 10px var(--beacon);
+}
+
+.os-beacon-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--beacon);
+  opacity: 0;
+}
+
+.os-beacon-sweep {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  opacity: 0;
+  background: conic-gradient(from 0deg, transparent 0 70%, var(--beacon) 100%);
+  mask: radial-gradient(circle, transparent 38%, #000 40%);
+  -webkit-mask: radial-gradient(circle, transparent 38%, #000 40%);
+}
+
+.os-beacon-locked .os-beacon-ring,
+.os-beacon-standby .os-beacon-ring { display: none; }
+
+.os-beacon-locked .os-ticks,
+.os-beacon-standby .os-ticks { display: block; }
+
+.os-beacon-locked .os-ticks > i::before {
+  animation: os-breathe 5s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.3125s);
+}
+
+.os-beacon-standby .os-ticks > i::before {
+  animation: os-breathe 8s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.5s);
+}
+
+.os-beacon-locked .os-beacon-core { animation: os-core-glow 3.6s ease-in-out infinite; }
+.os-beacon-standby .os-beacon-core { opacity: 0.85; }
+
+@keyframes os-breathe {
+  0%, 100% { height: 6px; opacity: 0.4; }
+  50% { height: 9px; opacity: 1; }
+}
+
+@keyframes os-core-glow {
+  0%, 100% { box-shadow: 0 0 7px var(--beacon); }
+  50% { box-shadow: 0 0 15px var(--beacon); }
+}
+
+.os-beacon-searching .os-beacon-ring { display: none; }
+.os-beacon-searching .os-beacon-core { animation: os-core-pulse 1.2s ease-in-out infinite; }
+
+.os-beacon-lost .os-beacon-ring { display: none; }
+
+@keyframes os-ping {
+  0% { transform: scale(0.35); opacity: 0.8; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+@keyframes os-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes os-flicker {
+  0%, 100% { opacity: 0.7; }
+  42% { opacity: 0.15; }
+  46% { opacity: 0.7; }
+  78% { opacity: 0.25; }
+}
+
+.os-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.os-bars > span {
+  /* `--h` (the step's nominal height) comes inline from the TSX; a state may override `--base`,
+     which the animations actually use — an inline custom property can't be overridden by CSS. */
+  --base: var(--h);
+  width: 4px;
+  height: var(--base);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--nh-fg) 14%, transparent);
+  transition: background-color 0.5s;
+}
+
+.os-bars > span.on { background: var(--nh-ok); }
+.os-bars-standby > span.on { background: var(--nh-warn); }
+.os-bars-searching > span.on { background: var(--main-second-color); }
+
+.os-bars-locked > span {
+  animation: os-bar-steady calc(2.6s + var(--i) * 0.7s) steps(1) infinite;
+  animation-delay: calc(var(--i) * -0.9s);
+}
+
+@keyframes os-bar-steady {
+  0%, 100% { height: var(--base); }
+  22% { height: calc(var(--base) * 0.84); }
+  47% { height: calc(var(--base) * 0.96); }
+  71% { height: calc(var(--base) * 0.76); }
+  86% { height: calc(var(--base) * 0.92); }
+}
+
+.os-bars-standby > span {
+  animation: os-bar-weak calc(3.4s + var(--i) * 0.8s) steps(1) infinite;
+  animation-delay: calc(var(--i) * -1.1s);
+}
+
+@keyframes os-bar-weak {
+  0%, 100% { height: calc(var(--base) * 0.8); }
+  28% { height: calc(var(--base) * 0.55); }
+  52% { height: calc(var(--base) * 0.9); }
+  77% { height: calc(var(--base) * 0.45); }
+}
+
+.os-bars-searching > span {
+  animation: os-bar-wild calc(1.1s + var(--i) * 0.23s) steps(1) infinite;
+  animation-delay: calc(var(--i) * -0.4s);
+}
+
+@keyframes os-bar-wild {
+  0% { height: calc(var(--base) * 0.4); }
+  15% { height: var(--base); }
+  31% { height: calc(var(--base) * 0.55); }
+  48% { height: calc(var(--base) * 0.9); }
+  66% { height: calc(var(--base) * 0.3); }
+  82% { height: calc(var(--base) * 0.75); }
+}
+
+.os-bars-lost > span {
+  --base: 3px;
+  background: color-mix(in srgb, var(--nh-danger) 45%, transparent);
+  animation: os-bar-fault 3.4s steps(1) infinite;
+  animation-delay: calc(var(--i) * 0.14s);
+}
+
+.os-bars-lost > span:first-child {
+  --base: 9px;
+  background: var(--nh-danger);
+}
+
+@keyframes os-bar-fault {
+  0%, 100% { height: var(--base); opacity: 1; }
+  14% { height: calc(var(--base) * 0.45); opacity: 0.5; }
+  18% { height: calc(var(--base) * 1.25); opacity: 1; }
+  55% { height: calc(var(--base) * 0.8); opacity: 0.7; }
+  60% { height: var(--base); opacity: 1; }
+  80% { height: calc(var(--base) * 0.55); opacity: 0.6; }
+}
+
+.os-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.os-refresh {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--control-background-color);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.os-refresh:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--nh-fg) 10%, transparent);
+  border-color: var(--main-color);
+}
+
+.os-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.os-refresh svg {
+  width: 18px;
+  height: 18px;
+}
+
+.os-refresh.spinning svg {
+  animation: os-spin 1s linear infinite;
+}
+
+.os-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+}
+
+.os-profile-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.os-ecg-in { animation: os-bg-in var(--c-bg-switch) steps(var(--c-bg-switch-steps), end) both; }
+.os-ecg-out { animation: os-bg-out var(--c-bg-switch) steps(var(--c-bg-switch-steps), end) both; }
+
+@keyframes os-bg-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes os-bg-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/*
+ * Beacon: a shockwave leaves the core and the ring runs a quick burst. Placed last so it overrides
+ * each state's own animation.
+ */
+.os-beacon-flash {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--beacon);
+  pointer-events: none;
+  animation: os-flash var(--c-link-switch) ease-out both;
+}
+
+@keyframes os-flash {
+  from { transform: scale(0.3); opacity: 1; }
+  to { transform: scale(1.9); opacity: 0; }
+}
+
+.os-beacon-switching .os-ticks > i::before {
+  animation: os-switch-tick var(--c-link-switch) steps(1) both;
+  animation-delay: calc(var(--i) * 0.03s);
+}
+
+@keyframes os-switch-tick {
+  0% { height: 5px; opacity: 0.3; }
+  25% { height: 16px; opacity: 1; }
+  55% { height: 7px; opacity: 0.8; }
+  100% { height: 6px; opacity: 0.5; }
+}
+
+.os-beacon-switching .os-beacon-core {
+  animation: os-core-kick var(--c-link-switch) ease-out both;
+}
+
+@keyframes os-core-kick {
+  0% { transform: scale(2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.theme-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.9rem;
+  text-align: left;
+  color: var(--text-color);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--nh-fg) 14%, transparent);
+  border-radius: var(--nh-radius-control);
+  cursor: pointer;
+}
+
+.theme-card:hover {
+  border-color: var(--main-second-color);
+}
+
+.theme-card.selected {
+  border-color: var(--main-second-color);
+  background: color-mix(in srgb, var(--main-color) 12%, transparent);
+}
+
+.theme-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.theme-name {
+  font-weight: 600;
+}
+
+.theme-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary-color, #999);
+}
+
+.theme-badges {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.theme-badge {
+  padding: 2px 8px;
+  font: 600 0.7rem/1.4 var(--nh-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid color-mix(in srgb, var(--nh-fg) 25%, transparent);
+  border-radius: var(--nh-radius-control);
+  color: color-mix(in srgb, var(--nh-fg) 70%, transparent);
+}
+
+.theme-badge-code { border-color: var(--main-second-color); color: var(--main-second-color); }
+.theme-badge-ok { border-color: var(--nh-ok); color: var(--nh-ok); }
+.theme-badge-warn { border-color: var(--nh-warn); color: var(--nh-warn); }
+
+.theme-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary-color, #999);
+}
+
+.theme-note-warn {
+  color: var(--nh-warn);
+}
+
+.theme-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* "Interface animations" off: the pieces that exist only to play an animation are hidden outright
+   (the launcher already stops every animation and transition), so they don't sit there frozen. */
+html[data-animations="off"] .os-beacon-flash,
+html[data-animations="off"] .os-ecg-out,
+html[data-animations="off"] .os-burst {
+  display: none !important;
+}
+
+.theme-preview {
+  flex-shrink: 0;
+  width: 56px;
+  height: 36px;
+  border-radius: var(--nh-radius-control);
+  object-fit: cover;
+  border: 1px solid var(--border-subtle);
+}
+.theme-preview-swatch { display: flex; gap: 3px; padding: 4px; box-sizing: border-box; }
+.theme-preview-swatch i { flex: 1; border-radius: 2px; }
+.theme-preview-letter { display: grid; place-items: center; font-weight: 700; background: var(--control-background-color); color: var(--text-secondary-color); }
+.theme-card-main { flex: 1; }
+.theme-settings { display: flex; flex-direction: column; gap: 0.75rem; padding-top: 0.5rem; border-top: 1px solid var(--border-subtle); }
+.theme-settings h4 { margin: 0; font: 600 0.75rem var(--nh-font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary-color); }
+.theme-setting { display: flex; flex-direction: column; gap: 0.25rem; }
+.theme-color-input { padding: 0 !important; height: 34px; width: 80px; cursor: pointer; }
+
+/*
+ * The account area without a session (the built-in rules are off in a `bare` theme, so Console
+ * styles it itself).
+ */
+.account-connecting {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-secondary-color);
+  font: 500 0.8rem var(--nh-font-mono);
+}
+
+.account-connecting-spinner {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--main-second-color);
+  border-radius: 50%;
+  animation: c-spin 0.9s steps(8) infinite;
+}
+
+.account-connecting-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-connecting-text::before { content: "> "; color: var(--main-second-color); }
+
+.account-signin {
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  color: var(--main-second-color);
+  font: 600 0.85rem var(--nh-font-mono);
+}
+
+.account-signin::before { content: "[ "; opacity: 0.55; white-space: pre; }
+.account-signin::after { content: " ]"; opacity: 0.55; white-space: pre; }
+.account-signin:hover { background: var(--main-color); color: #fff; }
+
+@keyframes c-spin { to { transform: rotate(360deg); } }
+
+html[data-animations="off"] .account-connecting-spinner { animation: none; }

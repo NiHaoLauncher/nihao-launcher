@@ -1,4 +1,4 @@
-use std::{env, io::Cursor, path::PathBuf, process::Command};
+use std::{env, io::Cursor, path::PathBuf};
 use reqwest::Client;
 use serde_json::Value;
 use tokio::fs;
@@ -35,7 +35,9 @@ pub async fn install_java(java_version: usize, path: PathBuf) -> Result<(), Stri
         .ok_or_else(|| "Not find package/link".to_string())?;
     let java_cache_path = path.parent().unwrap().join(".jre.cache");
 
-    crate::library::install::download(p_url, java_cache_path.clone()).await?;
+    // Adoptium publishes the archive's SHA-256 in the same answer.
+    let checksum = manifest[0]["binary"]["package"]["checksum"].as_str().unwrap_or("");
+    crate::library::install::download_checked(p_url, java_cache_path.clone(), checksum).await?;
 
     let content = fs::read(&java_cache_path).await
         .map_err(|e| e.to_string())?;
@@ -47,14 +49,16 @@ pub async fn install_java(java_version: usize, path: PathBuf) -> Result<(), Stri
     let install_folder = path.parent().unwrap().join(release_name);
 
     if install_folder.exists() {
-        // A stale destination from an earlier interrupted install would also make the
-        // rename fail (Windows won't rename onto an existing directory) — clear it first.
+        // A stale destination from an interrupted install would make the rename fail (Windows
+        // won't rename onto an existing directory), so clear it first.
         if path.exists() {
             let _ = fs::remove_dir_all(&path).await;
         }
         rename_with_retry(&install_folder, &path).await?;
+    } else {
+        // Without this the install would report success with no Java on disk.
+        return Err(format!("Java folder '{}' not found after unpacking", release_name));
     }
-    //// Clear cache ////
     let _ = fs::remove_file(&java_cache_path).await;
     Ok(())
 }
@@ -84,32 +88,4 @@ async fn rename_with_retry(from: &std::path::Path, to: &std::path::Path) -> Resu
             last_err.map(|e| e.to_string()).unwrap_or_default()
         )
     })
-}
-pub fn get_os() -> String {
-    let os = env::consts::OS;
-    match os {
-        "windows" => "windows".to_owned(),
-        "macos" => "osx".to_owned(),
-        "linux" => "linux".to_owned(),
-        _ => "unknown".to_owned(),
-    }
-}
-
-pub fn find_java_path() -> Option<String> {
-    if let Ok(output) = Command::new("java").arg("-version").output() {
-        if output.status.success() {
-            return Some("java".to_string());
-        }
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let java_home = std::env::var("JAVA_HOME").ok();
-        if let Some(java_home) = java_home {
-            let java_exe = format!("{}\\bin\\java.exe", java_home);
-            if std::path::Path::new(&java_exe).exists() {
-                return Some(java_exe);
-            }
-        }
-    }
-    None
 }

@@ -1,5 +1,10 @@
-import { useEffect, useRef } from "react";
+import { ReactNode, useEffect, useRef } from "react";
+import { t } from "../i18n";
+import WarningIcon from "../assets/icons/warning.svg?react";
 import "./Modal.css";
+import { usePresence } from "./presence";
+import { useModalBehaviors } from "./modalBehaviors";
+import { useModalStack } from "./modalStack";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -9,6 +14,10 @@ interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   variant?: "primary" | "danger";
+  /** Big icon above the message. `danger` defaults to a warning sign (pass e.g. a trash can for a delete); `null` for none. */
+  icon?: ReactNode | null;
+  /** Icon inside the confirm button. `danger` defaults to a warning sign; `null` for none. */
+  confirmIcon?: ReactNode | null;
 }
 
 export default function ConfirmModal({
@@ -16,39 +25,38 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
   message,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText = t("button_confirm", "Confirm"),
+  cancelText = t("button_cancel", "Cancel"),
   variant = "primary",
+  icon,
+  confirmIcon,
 }: ConfirmModalProps) {
+  const danger = variant === "danger";
+  const bigIcon = icon === undefined ? (danger ? <WarningIcon /> : null) : icon;
+  const buttonIcon = confirmIcon === undefined ? (danger ? <WarningIcon /> : null) : confirmIcon;
   const modalRef = useRef<HTMLDivElement>(null);
+  const { present, closing } = usePresence(isOpen);
+
+  useModalBehaviors(modalRef, [present]);
+
+  const isTopmost = useModalStack(isOpen);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        const modalOverlays = document.querySelectorAll('.modal-overlay');
-        const topmostModal = modalOverlays[modalOverlays.length - 1];
-        const isTopmost = topmostModal === e.target || topmostModal?.contains(e.target as Node);
-
-        if (isTopmost || modalOverlays.length === 1) {
-          onCancel();
-        }
-      }
+      if (e.key === "Escape" && isTopmost()) onCancel();
     };
 
     document.addEventListener("keydown", handleEscape);
     return () => {
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [isOpen, onCancel]);
+  }, [isOpen, onCancel, isTopmost]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      const allModals = Array.from(document.querySelectorAll('.modal-overlay'));
-      const topmostModal = allModals[allModals.length - 1];
-      const isTopmost = modalRef.current?.closest('.modal-overlay') === topmostModal;
-      if (!isTopmost) return;
+      if (!isTopmost()) return;
 
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
         onCancel();
@@ -64,15 +72,16 @@ export default function ConfirmModal({
       document.removeEventListener("mousedown", handleClickOutside);
       document.body.style.overflow = "unset";
     };
-  }, [isOpen, onCancel]);
+  }, [isOpen, onCancel, isTopmost]);
 
-  if (!isOpen) return null;
+  if (!present) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-container modal-size-small">
+    <div className={`modal-overlay${danger ? " modal-overlay-danger" : ""}${closing ? " closing" : ""}`}>
+      <div className={`modal-container modal-size-small${danger ? " confirm-danger" : ""}`} ref={modalRef}>
         <div className="modal-body">
           <div className="modal-content">
+            {bigIcon && <div className="confirm-icon">{bigIcon}</div>}
             <p className="confirm-message">{message}</p>
           </div>
         </div>
@@ -88,6 +97,7 @@ export default function ConfirmModal({
             onClick={onConfirm}
             type="button"
           >
+            {buttonIcon}
             {confirmText}
           </button>
         </div>

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Lang } from "@shared/types";
 
 const getActiveLanguage = (): Lang | null => {
@@ -50,5 +51,15 @@ export function T({ k, alt }: { k: string, alt?:string }) {
   const value = language[k] ?? alt ?? k;
   if (typeof value !== "string") return <>{value}</>;
 
-  return <span dangerouslySetInnerHTML={{ __html: value.replace(/\n/g, '<br/>') }} />;
+  // Plain text with line breaks, never HTML: a translation (or a value put into one) can't inject markup.
+  return (
+    <span>
+      {value.split("\n").map((line, i) => (
+        <Fragment key={i}>
+          {i > 0 && <br />}
+          {line}
+        </Fragment>
+      ))}
+    </span>
+  );
 }

@@ -2,9 +2,8 @@ import { open as openDialog } from "@tauri-apps/api/dialog";
 import "./BrowseField.css";
 
 /**
- * A text input paired with a native file/folder picker button — the same look used by the
- * launcher's own Game settings (game folder path), shared so every path-picking field in the
- * app looks identical instead of each place reimplementing its own input+button styling.
+ * A text input paired with a native file/folder picker button; shared so every path field looks
+ * the same (e.g. the game folder in Game settings).
  */
 export default function BrowseField({
   value,

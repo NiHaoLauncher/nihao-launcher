@@ -13,7 +13,6 @@ export function Pending<T, E>(): Result<T, E> {
     return { tag: 'pending' };
 }
 
-// Utility methods
 export function isOk<T, E>(result: Result<T, E>): result is { tag: 'ok'; value: T } {
     return result.tag === 'ok';
 }

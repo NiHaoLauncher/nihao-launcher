@@ -1,19 +1,10 @@
-//! Resolves display name/icon (and, secondarily, version) for mods/resourcepacks/shaderpacks/
-//! datapacks in the Content Manager, backed by one persistent cache (`cache.nihao`, one per
-//! instance) so re-opening the panel — or toggling/deleting a single file — never has to
-//! re-parse/re-query everything else again. Two sources per file, in order:
-//! 1. Whatever the file itself carries locally — see `mod_metadata.rs` (mods: fabric.mod.json/
-//!    mods.toml/mcmod.info; resourcepacks/datapacks: pack.mcmeta + pack.png; shaderpacks: none,
-//!    there's no standard metadata file for them).
-//! 2. Modrinth, by content hash — hosts mods, resourcepacks, shaderpacks, and datapacks alike,
-//!    so the same lookup applies uniformly to all four categories. Attempted for every single
-//!    file (not a directory — an unpacked pack has nothing to hash as one blob), even when local
-//!    metadata already has a name/icon: it's also the only way to learn the file's Modrinth
-//!    `project_id`, which "Installed" detection in Browse content needs regardless of where the
-//!    name/icon ultimately came from. Local data still always wins on conflicts (see the merge
-//!    in `resolve_content`) — this lookup only ever fills gaps or supplies `project_id`, and its
-//!    icon download is skipped outright when the local file already has one, since a one-time
-//!    hash+`project_id` lookup is cheap but a discarded icon download isn't.
+//! Resolves display name/icon (and version) for mods/resourcepacks/shaderpacks/datapacks in the
+//! Content Manager, backed by one persistent cache (`cache.nihao`, per instance) so re-opening the
+//! panel or toggling a file never re-parses/re-queries the rest. Two sources per file, in order:
+//! (1) what the file carries locally (see `mod_metadata.rs`; shaderpacks have none); (2) the online
+//! services (`services::identify_files`) by content hash, for all four categories. It is attempted
+//! for every file (not directories) even when local metadata has a name/icon, because it is the
+//! only way to learn the `(service, project_id)` that Browse's "Installed" detection needs.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -22,24 +13,28 @@ use std::time::UNIX_EPOCH;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use super::export::hash_file_sha1;
+use super::modpack_format::hash_file_sha1;
 use super::mod_metadata::{self, to_data_uri, ModMetadata};
+use super::services;
 
 const CACHE_FILE_NAME: &str = "cache.nihao";
-const MODRINTH_API_BASE: &str = "https://api.modrinth.com/v2";
-const HASH_LOOKUP_CHUNK: usize = 200;
+const MAX_ICON_BYTES: usize = 2 * 1024 * 1024;
+
+/// Serializes the final read-merge-write of `cache.nihao`, so two categories scanning at once
+/// can't overwrite each other's results.
+static CACHE_SAVE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[derive(Clone)]
 pub struct ResolvedContent {
     pub display_name: Option<String>,
     pub version: Option<String>,
     pub icon_data: Option<String>,
-    /// Only ever set when a Modrinth lookup actually happened and matched — `None` for a file
-    /// fully resolved from its own local metadata (no lookup needed) even if it genuinely does
-    /// have a Modrinth page. Good enough for "is this already installed?" (Browse content) —
-    /// files installed *through* Browse are the ones that matter there, and those are exactly
-    /// the ones likely to still be missing something locally the first time they're seen.
+    /// Set only when an online lookup actually matched; `None` for a file fully resolved locally,
+    /// even if it has an online page. Good enough for "is this already installed?" in Browse:
+    /// files installed through Browse are the ones likely to lack local metadata.
     pub project_id: Option<String>,
+    /// `ServiceInfo::id` of the service `project_id` belongs to; set together with it.
+    pub service: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -54,6 +49,8 @@ struct CacheEntry {
     icon_data: Option<String>,
     #[serde(default)]
     project_id: Option<String>,
+    #[serde(default)]
+    service: Option<String>,
 }
 
 /// One `cache.nihao`, split by category so a mod and a resourcepack that happen to share a
@@ -78,9 +75,13 @@ impl ContentCache {
             .unwrap_or_default()
     }
 
+    /// Write-then-rename, so a crash mid-write can't leave a truncated cache.
     fn save(&self, instance_dir: &Path) {
         if let Ok(json) = serde_json::to_string(self) {
-            let _ = std::fs::write(instance_dir.join(CACHE_FILE_NAME), json);
+            let tmp = instance_dir.join(format!("{}.tmp", CACHE_FILE_NAME));
+            if std::fs::write(&tmp, json).is_ok() {
+                let _ = std::fs::rename(&tmp, instance_dir.join(CACHE_FILE_NAME));
+            }
         }
     }
 
@@ -113,85 +114,20 @@ fn local_metadata(category: &str, path: &Path, is_dir: bool) -> ModMetadata {
     }
 }
 
-#[derive(Deserialize)]
-struct ModrinthVersionResponse {
-    project_id: String,
-    version_number: String,
-}
-
-/// `POST /version_files` — every hash that matches something on Modrinth maps to the project
-/// (and the specific version's own label) it belongs to. Best-effort: a failed/unreachable
-/// request (or a hash Modrinth doesn't recognize) just means those files aren't in the result,
-/// never an error.
-async fn lookup_versions_by_hash(hashes: &[String]) -> HashMap<String, (String, String)> {
-    let mut result = HashMap::new();
-    let client = Client::new();
-
-    for chunk in hashes.chunks(HASH_LOOKUP_CHUNK) {
-        let body = serde_json::json!({ "hashes": chunk, "algorithm": "sha1" });
-        let response = match client
-            .post(format!("{}/version_files", MODRINTH_API_BASE))
-            .json(&body)
-            .send()
-            .await
-        {
-            Ok(res) if res.status().is_success() => res,
-            _ => continue,
-        };
-        let parsed: HashMap<String, ModrinthVersionResponse> = match response.json().await {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        for (hash, version) in parsed {
-            result.insert(hash, (version.project_id, version.version_number));
-        }
-    }
-
-    result
-}
-
-#[derive(Deserialize)]
-struct ModrinthProjectResponse {
-    id: String,
-    title: String,
-    icon_url: Option<String>,
-}
-
-/// `GET /projects?ids=[...]` — batch project lookup for title/icon, one call regardless of how
-/// many distinct projects were matched by `lookup_versions_by_hash`.
-async fn lookup_projects(ids: &[String]) -> HashMap<String, ModrinthProjectResponse> {
-    if ids.is_empty() {
-        return HashMap::new();
-    }
-    let ids_param = serde_json::to_string(ids).unwrap_or_else(|_| "[]".to_string());
-    let client = Client::new();
-    let response = match client
-        .get(format!("{}/projects", MODRINTH_API_BASE))
-        .query(&[("ids", ids_param)])
-        .send()
-        .await
-    {
-        Ok(res) if res.status().is_success() => res,
-        _ => return HashMap::new(),
-    };
-    let projects: Vec<ModrinthProjectResponse> = response.json().await.unwrap_or_default();
-    projects.into_iter().map(|p| (p.id.clone(), p)).collect()
-}
-
 async fn download_icon(client: &Client, url: &str) -> Option<String> {
-    let bytes = client.get(url).send().await.ok()?.bytes().await.ok()?;
+    let bytes = client.get(url).send().await.ok()?.error_for_status().ok()?.bytes().await.ok()?;
+    if bytes.len() > MAX_ICON_BYTES {
+        return None;
+    }
     Some(to_data_uri(&bytes))
 }
 
-/// Resolves every `(filename, is_dir, metadata)` triple in `{instance_dir}/{category}` against
-/// the cache, filling in anything new/changed via local parsing + a Modrinth fallback, then
-/// persists the updated cache (pruning entries for files that no longer exist) before
-/// returning. `category` is one of `"mods"`/`"resourcepacks"`/`"shaderpacks"`/`"datapacks"`.
-/// `on_progress(done, total)` is called once up front with the number of files that actually
-/// need (re)resolving — everything already cache-fresh is instant and doesn't count — and once
-/// more after each one finishes, so a caller like the Content manager panel's first load after
-/// importing a modpack (parsing/hashing/Modrinth-looking-up a hundred-plus mods can genuinely
-/// take several seconds) can show real progress instead of an indefinite spinner.
+/// Resolves every `(filename, is_dir, metadata)` in `{instance_dir}/{category}`
+/// (`mods`/`resourcepacks`/`shaderpacks`/`datapacks`) against the cache, filling in new or changed
+/// entries via local parsing plus an online-service fallback, then persists the cache (pruning vanished
+/// files). `on_progress(done, total)` fires once up front with the number of files that need
+/// (re)resolving (cache-fresh ones don't count) and after each one, so the Content manager can show
+/// real progress on a first scan of a big modpack.
 pub async fn resolve_content(
     category: &str,
     instance_dir: &Path,
@@ -218,6 +154,8 @@ pub async fn resolve_content(
                         version: e.version.clone(),
                         icon_data: e.icon_data.clone(),
                         project_id: e.project_id.clone(),
+                        // Entries cached before there were several services were all Modrinth's.
+                        service: e.service.clone().or_else(|| e.project_id.as_ref().map(|_| "modrinth".to_string())),
                     },
                 );
             } else {
@@ -238,10 +176,9 @@ pub async fn resolve_content(
             let path = content_dir.join(filename);
             let info = local_metadata(category, &path, *is_dir);
             let fp = fingerprint(meta);
-            // Always attempted for a non-directory file, even when local metadata already has
-            // everything — the hash lookup is also the only way to learn a file's Modrinth
-            // `project_id`, which "Installed" detection in Browse content needs even for a mod
-            // whose name/icon came from its own `fabric.mod.json`/`mods.toml`/etc.
+            // Always attempted for a non-directory file, even when local metadata is complete: the
+            // hash lookup is the only way to learn the online `project_id` that Browse's
+            // "Installed" detection needs.
             if !is_dir {
                 if let Ok((sha1, _)) = hash_file_sha1(&path) {
                     if info.icon_data.is_none() {
@@ -253,28 +190,34 @@ pub async fn resolve_content(
             parsed.insert(filename.clone(), (info, fp));
         }
 
-        // sha1 -> (name, version, icon, project_id)
-        let mut resolved_by_hash: HashMap<String, (Option<String>, Option<String>, Option<String>, Option<String>)> = HashMap::new();
+        let mut resolved_by_hash: HashMap<String, ResolvedContent> = HashMap::new();
         let mut done = 0usize;
         if !needs_lookup.is_empty() {
             let hashes: Vec<String> = needs_lookup.iter().map(|(_, h)| h.clone()).collect();
-            let version_by_hash = lookup_versions_by_hash(&hashes).await;
-            let project_ids: Vec<String> = version_by_hash.values().map(|(id, _)| id.clone()).collect();
-            let projects = lookup_projects(&project_ids).await;
+            let known_by_hash = services::identify_files(&hashes, |_, _| {}).await;
+            let mut ids_by_service: HashMap<&str, Vec<String>> = HashMap::new();
+            for known in known_by_hash.values() {
+                ids_by_service.entry(known.service).or_default().push(known.project_id.clone());
+            }
+            let mut projects = HashMap::new(); // (service, project id) -> title/icon
+            for (service_id, ids) in ids_by_service {
+                if let Ok(service) = services::get(service_id) {
+                    for (id, brief) in service.project_briefs(&ids).await {
+                        projects.insert((service_id, id), brief);
+                    }
+                }
+            }
 
             let client = Client::new();
             let mut icon_cache: HashMap<String, Option<String>> = HashMap::new();
-            // Iterates `needs_lookup` (one entry per *file*, not `version_by_hash`, which is
-            // deduplicated by hash) so a progress tick lands for every file, including ones
-            // Modrinth didn't recognize at all — and, crucially, so the tick happens right after
-            // *this file's* icon (if any) actually finishes downloading, which is where the
-            // real wall-clock time goes: the batched hash/project lookups above are one or two
-            // requests total, but an icon fetch is one sequential HTTP round trip per file with
-            // its own distinct icon, easily the bulk of a first scan's several seconds.
+            // Iterates `needs_lookup` (one entry per file, unlike the hash-deduplicated
+            // `known_by_hash`) so a progress tick lands per file, right after that file's icon
+            // downloads, where most of a first scan's time goes (one sequential round trip per
+            // distinct icon).
             for (_, hash) in &needs_lookup {
                 if !resolved_by_hash.contains_key(hash) {
-                    if let Some((project_id, version_number)) = version_by_hash.get(hash) {
-                        if let Some(project) = projects.get(project_id) {
+                    if let Some(known) = known_by_hash.get(hash) {
+                        if let Some(project) = projects.get(&(known.service, known.project_id.clone())) {
                             let icon = if !icon_needed.contains(hash) {
                                 None
                             } else if let Some(url) = &project.icon_url {
@@ -291,7 +234,13 @@ pub async fn resolve_content(
                             };
                             resolved_by_hash.insert(
                                 hash.clone(),
-                                (Some(project.title.clone()), Some(version_number.clone()), icon, Some(project_id.clone())),
+                                ResolvedContent {
+                                    display_name: Some(project.title.clone()),
+                                    version: Some(known.version_number.clone()),
+                                    icon_data: icon,
+                                    project_id: Some(known.project_id.clone()),
+                                    service: Some(known.service.to_string()),
+                                },
                             );
                         }
                     }
@@ -304,12 +253,13 @@ pub async fn resolve_content(
         let entries = cache.entries_mut(category);
         for (filename, (info, fp)) in parsed {
             let looked_up = needs_lookup.iter().find(|(f, _)| f == &filename).map(|(_, h)| h.clone());
-            let modrinth = looked_up.as_ref().and_then(|h| resolved_by_hash.get(h));
+            let online = looked_up.as_ref().and_then(|h| resolved_by_hash.get(h));
 
-            let display_name = info.name.clone().or_else(|| modrinth.and_then(|(n, _, _, _)| n.clone()));
-            let version = info.version.clone().or_else(|| modrinth.and_then(|(_, v, _, _)| v.clone()));
-            let icon_data = info.icon_data.clone().or_else(|| modrinth.and_then(|(_, _, i, _)| i.clone()));
-            let project_id = modrinth.and_then(|(_, _, _, p)| p.clone());
+            let display_name = info.name.clone().or_else(|| online.and_then(|o| o.display_name.clone()));
+            let version = info.version.clone().or_else(|| online.and_then(|o| o.version.clone()));
+            let icon_data = info.icon_data.clone().or_else(|| online.and_then(|o| o.icon_data.clone()));
+            let project_id = online.and_then(|o| o.project_id.clone());
+            let service = online.and_then(|o| o.service.clone());
 
             entries.insert(filename.clone(), CacheEntry {
                 size: fp.0,
@@ -318,11 +268,11 @@ pub async fn resolve_content(
                 version: version.clone(),
                 icon_data: icon_data.clone(),
                 project_id: project_id.clone(),
+                service: service.clone(),
             });
-            result.insert(filename, ResolvedContent { display_name, version, icon_data, project_id });
-            // A directory (or a file whose hash couldn't be computed) never went through
-            // `needs_lookup` above, so it never got a progress tick — it was effectively
-            // instant, so this is as good a moment as any to count it.
+            result.insert(filename, ResolvedContent { display_name, version, icon_data, project_id, service });
+            // A directory (or an unhashable file) never went through `needs_lookup`, so it gets
+            // its progress tick here.
             if looked_up.is_none() {
                 done += 1;
                 on_progress(done.min(total_stale), total_stale);
@@ -330,11 +280,15 @@ pub async fn resolve_content(
         }
     }
 
-    // Prune anything no longer present so the cache doesn't grow unbounded across renames/
-    // removals over the life of an instance.
+    // Prune files that no longer exist so the cache doesn't grow unbounded.
     let current: std::collections::HashSet<&String> = files.iter().map(|(f, _, _)| f).collect();
     cache.entries_mut(category).retain(|filename, _| current.contains(filename));
 
-    cache.save(instance_dir);
+    {
+        let _guard = CACHE_SAVE_LOCK.lock().unwrap();
+        let mut latest = ContentCache::load(instance_dir);
+        *latest.entries_mut(category) = std::mem::take(cache.entries_mut(category));
+        latest.save(instance_dir);
+    }
     result
 }

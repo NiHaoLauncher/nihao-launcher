@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <path class="ip share-l1" d="M8.3 10.8l7.4-4.1" />
+  <path class="ip share-l2" d="M8.3 13.2l7.4 4.1" />
+  <circle class="ip share-n1" cx="18" cy="5.5" r="2.5" />
+  <circle class="ip share-n2" cx="6" cy="12" r="2.5" />
+  <circle class="ip share-n3" cx="18" cy="18.5" r="2.5" />
+</svg>

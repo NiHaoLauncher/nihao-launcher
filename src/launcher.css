@@ -13,8 +13,7 @@
     cursor: pointer;
 }
 
-/* Idle state matches the old launcher's game list tiles exactly (grayscale/half-opacity at
-   rest, full color on hover) — see nihao-client-old/src/pages/game_list.html's .modpack. */
+/* Idle: grayscale and half-opacity at rest, full colour on hover. */
 .home-game-tile-img,
 .home-game-tile-placeholder {
     width: 100%;
@@ -47,18 +46,69 @@
     transform: scale(1.03);
 }
 
-/* Dims every OTHER tile while one of its siblings is being hovered, so the flyout (below)
-   reads as the clear focus — same idea as Steam's library list hover. Already grayscale/
-   half-opacity at rest, so this just needs to make sure it stays that way (in case the
-   pointer briefly grazed it on the way to another tile). */
+/* Dims every OTHER tile while one sibling is hovered, so the flyout is the focus. */
 .home-game-tile.dimmed .home-game-tile-img,
 .home-game-tile.dimmed .home-game-tile-placeholder {
     opacity: 0.5;
     filter: grayscale(60%);
 }
 
-/* The actual hover-menu: pops out to the side as its own card, sharp image + info below —
-   not squeezed into the tile's own small box. */
+/*
+ * Onboarding game-picker grid (`GameListSelection`): reuses the Game Library tile classes but is
+ * toggle-select: selected tiles get full colour plus a checkmark badge, no hover flyout.
+ */
+.onboarding-game-tile {
+    position: relative;
+    width: 140px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+/*
+ * Explicit dim-by-default so this tile's rest state doesn't depend on selector order/specificity.
+ */
+.onboarding-game-tile .home-game-tile-img,
+.onboarding-game-tile .home-game-tile-placeholder {
+    opacity: 0.5;
+    filter: grayscale(60%);
+    transition: opacity 0.2s ease, filter 0.2s ease, transform 0.15s ease;
+}
+
+.onboarding-game-tile:hover .home-game-tile-img,
+.onboarding-game-tile:hover .home-game-tile-placeholder,
+.onboarding-game-tile.selected .home-game-tile-img,
+.onboarding-game-tile.selected .home-game-tile-placeholder {
+    opacity: 1;
+    filter: grayscale(0%);
+    transform: scale(1.03);
+}
+
+.onboarding-game-tile-name {
+    margin-top: 8px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text-color);
+}
+
+.onboarding-game-tile-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background-color: var(--main-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--nh-shade) 35%, transparent);
+}
+
+/* The hover menu pops out to the side as its own card instead of being squeezed into the tile. */
 .home-game-tile-flyout {
     position: absolute;
     left: calc(100% + 10px);
@@ -67,7 +117,7 @@
     background-color: var(--second-background-color);
     border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 16px 40px color-mix(in srgb, var(--nh-shade) 50%, transparent);
     z-index: 20;
     opacity: 0;
     transform: translateX(-6px);

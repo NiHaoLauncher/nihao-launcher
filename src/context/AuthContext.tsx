@@ -1,43 +1,51 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { invoke } from "@tauri-apps/api";
 import { useClient } from "./ClientContext";
 import {
-  AuthTokens,
   AuthUser,
-  changePassword as apiChangePassword,
   checkServerAlive,
-  login as apiLogin,
   logout as apiLogout,
   openConnectionStream,
+  requestCode as apiRequestCode,
+  StreamHandle,
+  verifyCode as apiVerifyCode,
 } from "../launcher/api";
+import { useService } from "../state/Service";
 
-export type AuthStatus = "connecting" | "authenticated" | "anonymous" | "unavailable";
-
-/** How long to wait before silently retrying a reconnect after the server was unreachable. */
-const RECONNECT_RETRY_MS = 4000;
+/**
+ * `idle`: no attempt made. A client never linked to an account does not contact the server on its
+ * own, only when the user asks (Refresh, the network step).
+ */
+export type AuthStatus = "idle" | "connecting" | "authenticated" | "anonymous" | "unavailable";
 
 interface AuthContextType {
   status: AuthStatus;
   user: AuthUser | null;
-  /** The current refresh token, kept here (not just on disk) so onboarding can persist it
-   *  itself once the local profile is created — see `finalSetupF` in initialization.tsx. */
-  refreshToken: string | null;
   error: string | null;
-  login: (loginId: string, password: string) => Promise<void>;
+  /** Emails a one-time code; resolves with how many seconds it stays valid. */
+  requestCode: (email: string) => Promise<number>;
+  /** Trades the emailed code for a session and goes online; resolves once the code is accepted. */
+  verifyCode: (email: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
-  /** Re-attempts connecting/probing right now — for a screen that wants a fresh, visible
-   *  "connecting" attempt of its own rather than showing a verdict from an earlier check
-   *  that may have run silently long before this screen was ever shown. */
+  /**
+   * Re-attempts connecting/probing now, so a screen can show a fresh, visible attempt instead of
+   * an earlier silent verdict.
+   */
   retry: () => void;
-  /** Forces a fresh reconnect right now, even if already authenticated — unlike `retry()`,
-   *  which is a no-op while authenticated/connecting (it's meant for a "connecting..." screen
-   *  before a session exists). Used by a manual "refresh connection" action in Settings. */
+  /**
+   * Forces a fresh reconnect even when already authenticated (unlike `retry()`, a no-op while
+   * authenticated/connecting). Used by Settings' manual refresh.
+   */
   reconnect: () => void;
-  /** Gives up on reconnecting with the stored token for now — stops the silent retry loop
-   *  started by `connectWithRefreshToken` so the caller (a "connecting..." screen with a
-   *  Skip button) can move on and let the user continue offline. */
+  /**
+   * Stops the connection's silent retry loop (`run_stream_loop` in `server_api.rs`) so a
+   * "connecting..." screen can let the user continue offline.
+   */
   skipConnecting: () => void;
+  /**
+   * Patches locally known fields of the current user after an edit made elsewhere, so readers of
+   * `user` don't show stale data until the next `auth` event.
+   */
+  patchUser: (patch: Partial<Pick<AuthUser, "displayname" | "avatar" | "description">>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,158 +54,146 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { localClient, setLocalClient, localClientLoaded } = useClient();
   const [status, setStatus] = useState<AuthStatus>("connecting");
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const sessionTokenRef = useRef<string | null>(null);
-  const closeStreamRef = useRef<(() => void) | null>(null);
+  const closeStreamRef = useRef<StreamHandle | null>(null);
   const attemptedRef = useRef(false);
-  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skippedRef = useRef(false);
+  // Ref so the one-shot connect effect reads the current `localClient` without depending on it:
+  // `applyTokens` replaces it on every `auth` event, and a dependency would tear down the fresh
+  // connection.
+  const localClientRef = useRef(localClient);
+  localClientRef.current = localClient;
 
-  function clearScheduledRetry() {
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = null;
-    }
-  }
-
-  function applyTokens(tokens: AuthTokens, currentLocalClient: typeof localClient) {
-    sessionTokenRef.current = tokens.session_token;
-    setUser(tokens.user);
-    setRefreshToken(tokens.refresh_token);
+  function applyAuth(authUser: AuthUser, currentLocalClient: typeof localClient) {
+    setUser(authUser);
     setStatus("authenticated");
     setError(null);
 
-    // Only persist to disk once a local profile exists — during onboarding, before it does,
-    // `finalSetupF` picks up `refreshToken` from this context and saves it itself.
-    if (currentLocalClient) {
-      const updated = { ...currentLocalClient, client: tokens.refresh_token };
-      setLocalClient(updated);
-      invoke("save_local_data", { data: updated }).catch((e) =>
-        console.error("Failed to persist refresh token:", e)
-      );
+    if (currentLocalClient && !currentLocalClient.linked) {
+      setLocalClient({ ...currentLocalClient, linked: true });
     }
   }
 
-  function connectWithRefreshToken(token: string, currentLocalClient: typeof localClient) {
-    closeStreamRef.current?.();
-    clearScheduledRetry();
+  // The Rust stream (`run_stream_loop` in `server_api.rs`) owns the reconnect lifecycle: it
+  // retries on its own until success, dead credentials or an explicit stop (`skipConnecting`,
+  // `logout`, a newer connect).
+  function connectStream(currentLocalClient: typeof localClient) {
+    // `.detach()`, not `.disconnect()`: `server_connect_stream` already aborts the old stream, and
+    // a separate disconnect `invoke()` would race the new connect (see `StreamHandle`).
+    closeStreamRef.current?.detach();
     setStatus("connecting");
-    closeStreamRef.current = openConnectionStream(token, {
-      onAuth: (tokens) => applyTokens(tokens, currentLocalClient),
+    const markDisconnected = () => {
+      setUser(null);
+      setStatus("unavailable");
+    };
+    closeStreamRef.current = openConnectionStream({
+      onAuth: (authUser) => applyAuth(authUser, currentLocalClient),
+      // Not proof the server is up: the backend also reports it for local reasons (no saved
+      // session, no client key), so ask `/health` before showing the sign-in form.
       onUnauthorized: (message) => {
-        sessionTokenRef.current = null;
         setUser(null);
-        setRefreshToken(null);
-        setStatus("anonymous");
         setError(message);
+        void probeServer();
       },
-      // The server never answered at all — distinct from onUnauthorized (server answered
-      // "no") so the login form isn't shown for a server that isn't even reachable. This is
-      // specifically the "reconnecting with an already-known account" path, so keep quietly
-      // retrying with the same token (it was never consumed — the server never responded)
-      // until it works or the user gives up via skipConnecting().
-      onUnreachable: () => {
-        sessionTokenRef.current = null;
-        setUser(null);
-        setStatus("unavailable");
-        if (!skippedRef.current) {
-          retryTimeoutRef.current = setTimeout(() => {
-            if (!skippedRef.current) connectWithRefreshToken(token, currentLocalClient);
-          }, RECONNECT_RETRY_MS);
-        }
-      },
-      onClosed: () => {
-        sessionTokenRef.current = null;
-        setUser(null);
-        setStatus("anonymous");
-      },
+      onUnreachable: markDisconnected,
+      // A stream that opened and later ended is always a transient drop (a user logout calls
+      // `.disconnect()` first), so same handling as `onUnreachable`.
+      onClosed: markDisconnected,
     });
   }
 
-  // No stored token to try — the login form is only worth showing if the server is actually
-  // reachable, so probe it first instead of assuming "anonymous" outright.
   async function probeServer() {
     setStatus("connecting");
     const alive = await checkServerAlive();
     setStatus(alive ? "anonymous" : "unavailable");
   }
 
-  function attemptConnect(currentLocalClient: typeof localClient) {
-    if (currentLocalClient?.client) {
-      connectWithRefreshToken(currentLocalClient.client, currentLocalClient);
-    } else {
+  /**
+   * `userRequested` false is the automatic startup attempt: a never-linked client stays `idle`
+   * instead of probing the server.
+   */
+  function attemptConnect(currentLocalClient: typeof localClient, userRequested = true) {
+    if (currentLocalClient?.linked) {
+      connectStream(currentLocalClient);
+    } else if (userRequested) {
       probeServer();
+    } else {
+      setStatus("idle");
     }
   }
 
   useEffect(() => {
+    useService.getState().sync({ status, user });
+  }, [status, user]);
+
+  useEffect(() => {
     if (attemptedRef.current) return;
-    // Waits for the *check* to finish, not for a profile to exist — `localClient` staying
-    // null is ambiguous otherwise (still being read from disk vs. genuinely no profile yet,
-    // which during first-run onboarding can last minutes). See markLocalClientLoaded callers.
+    // Waits for the check to finish: `localClient` null is ambiguous (still loading vs. no profile
+    // yet, which can last minutes during onboarding).
     if (!localClientLoaded) return;
     attemptedRef.current = true;
-    attemptConnect(localClient);
+    attemptConnect(localClientRef.current, false);
 
     return () => {
-      closeStreamRef.current?.();
-      clearScheduledRetry();
+      closeStreamRef.current?.disconnect();
     };
+    // Deliberately not depending on `localClient` (see `localClientRef`): runs once, when
+    // `localClientLoaded` first becomes true.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localClientLoaded, localClient]);
+  }, [localClientLoaded]);
 
   function retry() {
     if (status === "authenticated" || status === "connecting") return;
-    skippedRef.current = false;
     attemptConnect(localClient);
   }
 
   function reconnect() {
-    skippedRef.current = false;
     attemptConnect(localClient);
   }
 
   function skipConnecting() {
-    skippedRef.current = true;
-    clearScheduledRetry();
+    closeStreamRef.current?.disconnect();
     setStatus((prev) => (prev === "authenticated" ? prev : "unavailable"));
   }
 
-  async function login(loginId: string, password: string) {
-    setStatus("connecting");
+  function patchUser(patch: Partial<Pick<AuthUser, "displayname" | "avatar" | "description">>) {
+    setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+  }
+
+  async function requestCode(email: string) {
     setError(null);
     try {
-      const tokens = await apiLogin(loginId, password);
-      applyTokens(tokens, localClient);
+      return await apiRequestCode(email);
     } catch (e) {
-      setStatus("anonymous");
       setError(e instanceof Error ? e.message : String(e));
       throw e;
     }
   }
 
-  async function changePassword(currentPassword: string, newPassword: string) {
-    if (!sessionTokenRef.current) throw new Error("Not signed in");
-    await apiChangePassword(sessionTokenRef.current, currentPassword, newPassword);
+  async function verifyCode(email: string, code: string) {
+    setError(null);
+    try {
+      await apiVerifyCode(email, code);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      throw e;
+    }
+    // The code is good; going online is the connection's job, and its `Auth` event does the rest.
+    connectStream(localClient);
   }
 
   async function logout() {
-    closeStreamRef.current?.();
+    // Before the connection is dropped: `session.logout` travels on it.
+    await apiLogout();
+    closeStreamRef.current?.detach();
     closeStreamRef.current = null;
-    clearScheduledRetry();
-    if (sessionTokenRef.current) {
-      await apiLogout(sessionTokenRef.current);
-    }
-    sessionTokenRef.current = null;
     setUser(null);
-    setRefreshToken(null);
     setStatus("anonymous");
+    if (localClient?.linked) setLocalClient({ ...localClient, linked: false });
   }
 
   return (
     <AuthContext.Provider
-      value={{ status, user, refreshToken, error, login, logout, changePassword, retry, reconnect, skipConnecting }}
+      value={{ status, user, error, requestCode, verifyCode, logout, retry, reconnect, skipConnecting, patchUser }}
     >
       {children}
     </AuthContext.Provider>
