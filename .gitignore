@@ -53,3 +53,4 @@ src-tauri/logs/
 
 # Old copies kept by hand for reference; not part of the project
 design/backup/
+keys/
