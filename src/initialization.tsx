@@ -372,7 +372,7 @@ function NewUser() {
   }
 
   return (
-    <BlankLayout>
+    <BlankLayout minimal>
       <div style={{
         display: "flex",
         flexDirection: "column",

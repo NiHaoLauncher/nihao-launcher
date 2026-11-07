@@ -11,7 +11,7 @@ import { resolveSettings } from "../../themes/external";
 import type { LocalClient } from "../../launcher/UserProfile";
 
 /** One row of the list: the built-in theme, or one found in the `themes/` folder. */
-interface Item {
+export interface Item {
   id: string;
   name: string;
   version: string;
@@ -91,11 +91,61 @@ function SettingControl({ themeId, field, value, onChange }: { themeId: string; 
       return row(
         <input id={id} type="color" className="theme-color-input" value={/^#[0-9a-fA-F]{6}$/.test(String(value)) ? String(value) : "#000000"} onChange={(e) => onChange(e.target.value)} />
       );
-    case "text":
-      return row(
-        <input id={id} type="text" value={String(value)} maxLength={field.maxLength} onChange={(e) => onChange(e.target.value)} />
-      );
+  case "text":
+    return row(
+      <input id={id} type="text" value={String(value)} maxLength={field.maxLength} onChange={(e) => onChange(e.target.value)} />
+    );
   }
+}
+
+/** Theme card list: pick the built-in theme or a folder theme. */
+export function ThemeCards({ items, selected, isApproved, onChoose }: { items: Item[]; selected: string; isApproved: (item: Item) => boolean; onChoose: (item: Item) => void }) {
+  return (
+    <div className="theme-list" role="radiogroup" aria-label={t("title_appearance", "Appearance")}>
+      {items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          role="radio"
+          aria-checked={selected === item.id}
+          className={`theme-card${selected === item.id ? " selected" : ""}`}
+          onClick={() => onChoose(item)}
+        >
+          <ThemePreview item={item} />
+          <span className="theme-card-main">
+            <span className="theme-name">{item.name}</span>
+            <span className="theme-meta">
+              v{item.version}{item.author ? ` · ${item.author}` : ""}
+            </span>
+          </span>
+          <span className="theme-badges">
+            {item.builtin ? (
+              <span className="theme-badge">{t("appearance_builtin", "built-in")}</span>
+            ) : (
+              <>
+                <span className="theme-badge theme-badge-code">{t("appearance_code", "code")}</span>
+                {isApproved(item)
+                  ? <span className="theme-badge theme-badge-ok">{t("appearance_approved", "approved")}</span>
+                  : <span className="theme-badge theme-badge-warn">{t("appearance_needs_approval", "needs approval")}</span>}
+              </>
+            )}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Controls for a theme's own settings, drawn from its declaration. */
+export function ThemeSettingControls({ themeId, schema, values, onChange }: { themeId: string; schema: ThemeSettingField[]; values: ThemeSettingValues; onChange: (key: string, v: ThemeSettingValue) => void }) {
+  return (
+    <section className="theme-settings">
+      <h4>{t("appearance_theme_settings", "Theme settings")}</h4>
+      {schema.map((field) => (
+        <SettingControl key={field.key} themeId={themeId} field={field} value={values[field.key]} onChange={(v) => onChange(field.key, v)} />
+      ))}
+    </section>
+  );
 }
 
 /**

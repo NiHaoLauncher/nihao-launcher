@@ -51,7 +51,7 @@ export function AppearanceStep({ value, onChange }: { value: AppearanceChoice; o
     }
     const next = { theme: item.builtin ? null : item.id, trusted_themes: trusted };
     onChange(next);
-    await activate(item.id, next);
+    await activate(item.id);
   }
 
   const schema = theme.id === selected ? theme.settings ?? [] : [];

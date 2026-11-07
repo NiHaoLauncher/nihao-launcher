@@ -44,22 +44,12 @@ function formatBytes(bytes: number): string {
 
 const text = (key: string | null | undefined, fallback: string) => (key ? t(key, fallback) : fallback);
 
-/** A checkbox that can show "some of them" (`indeterminate` is a DOM property, not an attribute). */
-function GroupBox({ checked, some, onChange }: { checked: boolean; some: boolean; onChange: (on: boolean) => void }) {
-  return (
-    <input
-      type="checkbox"
-      checked={checked}
-      ref={(el) => { if (el) el.indeterminate = some && !checked; }}
-      onChange={(e) => onChange(e.target.checked)}
-    />
-  );
-}
-
 /**
- * `/uninstall`: what to remove with the launcher. Opened by the uninstaller (`--uninstall`) or
+ * `/uninstall`: what the uninstaller will remove. Opened by the uninstaller (`--uninstall`) or
  * from a running launcher it re-launches. On confirm the backend hands the choice to the
  * uninstaller and the launcher exits, so nothing here deletes anything itself.
+ *
+ * No checkboxes: everything shown is removed. General settings (saved sign-in) are kept.
  */
 export default function UninstallPage() {
   const navigate = useNavigate();
@@ -68,7 +58,6 @@ export default function UninstallPage() {
   const hasLanguage = useLocalization((s) => !!s.language);
 
   const [groups, setGroups] = useState<Group[] | null>(null);
-  const [ticked, setTicked] = useState<Ticked>({});
   const [startedByUninstaller, setStartedByUninstaller] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,8 +72,14 @@ export default function UninstallPage() {
     invoke<boolean>("is_uninstall_mode").then(setStartedByUninstaller).catch(() => {});
     invoke<Group[]>("get_uninstall_options", {})
       .then((found) => {
-        setGroups(found);
-        setTicked(Object.fromEntries(found.map((g) => [g.id, g.items.filter((i) => i.delete_by_default).map((i) => i.id)])));
+        // Drop the launcher's general settings (saved sign-in): they are kept on uninstall.
+        const cleaned = found.map((g) => ({
+          ...g,
+          items: g.id === "launcher"
+            ? g.items.filter((i) => i.id !== "settings")
+            : g.items,
+        }));
+        setGroups(cleaned);
       })
       .catch((e) => setError(String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,18 +90,12 @@ export default function UninstallPage() {
     let size = 0;
     for (const g of groups ?? []) {
       for (const i of g.items) {
-        if (ticked[g.id]?.includes(i.id)) { count++; size += i.size; }
+        count++;
+        size += i.size;
       }
     }
     return { count, size };
-  }, [groups, ticked]);
-
-  function toggle(group: Group, itemIds: string[], on: boolean) {
-    setTicked((prev) => {
-      const rest = (prev[group.id] ?? []).filter((id) => !itemIds.includes(id));
-      return { ...prev, [group.id]: on ? [...rest, ...itemIds] : rest };
-    });
-  }
+  }, [groups]);
 
   function cancel() {
     if (startedByUninstaller) appWindow.close();
@@ -114,6 +103,11 @@ export default function UninstallPage() {
   }
 
   async function uninstall() {
+    // Everything shown is ticked: build the full selection.
+    const selected: Ticked = {};
+    for (const g of groups ?? []) {
+      selected[g.id] = g.items.map((i) => i.id);
+    }
     const ok = await confirm({
       message: t("uninstall.confirm", "The launcher closes now and the selected data is deleted for good. Continue?"),
       confirmText: t("uninstall.button", "Uninstall"),
@@ -124,7 +118,7 @@ export default function UninstallPage() {
     setBusy(true);
     setError(null);
     try {
-      await invoke("uninstall_apply", { selected: ticked });
+      await invoke("uninstall_apply", { selected });
     } catch (e) {
       setError(`${t("uninstall.failed", "Could not start the uninstaller")}: ${e}`);
       setBusy(false);
@@ -132,27 +126,23 @@ export default function UninstallPage() {
   }
 
   return (
-    <BlankLayout>
+    <BlankLayout minimal>
       <div className="uninstall-page settings-tab">
         <h1>{t("uninstall.title", "Uninstall NiHao Launcher")}</h1>
-        <p>{t("uninstall.intro", "Choose what to remove from this computer. When you confirm, the launcher closes and the uninstaller deletes what is ticked. Whatever you leave unticked stays where it is.")}</p>
+        <p>{t("uninstall.intro", "The uninstaller removes the launcher program, its modules and your data. Saved sign-in is kept.")}</p>
 
         <div className="uninstall-groups">
           {!groups && !error && <p className="uninstall-muted">{t("uninstall.loading", "Looking for your data...")}</p>}
           {groups?.map((group) => {
-            const ids = group.items.map((i) => i.id);
-            const on = ticked[group.id] ?? [];
             const total = group.items.reduce((sum, i) => sum + i.size, 0);
             return (
               <section className="uninstall-group" key={group.id}>
                 <label className="settings-checkbox-label uninstall-group-head">
-                  <GroupBox checked={on.length === ids.length} some={on.length > 0} onChange={(v) => toggle(group, ids, v)} />
                   <b className="settings-option-text">{group.id === "launcher" ? t("uninstall.launcher", "Launcher") : group.name}</b>
-                  <span className="uninstall-size">{t("uninstall.delete_all", "Delete all")} · {formatBytes(total)}</span>
+                  <span className="uninstall-size">{formatBytes(total)}</span>
                 </label>
                 {group.items.map((item) => (
                   <label className="settings-checkbox-label uninstall-item" key={item.id} title={item.paths.join("\n")}>
-                    <input type="checkbox" checked={on.includes(item.id)} onChange={(e) => toggle(group, [item.id], e.target.checked)} />
                     <span className="uninstall-item-text">
                       <span className="settings-option-text">{text(item.label_key, item.label)}</span>
                       {item.description && <small className="uninstall-muted">{text(item.description_key, item.description)}</small>}

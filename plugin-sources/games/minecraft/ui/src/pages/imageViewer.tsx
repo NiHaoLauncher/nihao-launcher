@@ -184,4 +184,9 @@ export function GalleryImageMenu({ x, y, url, service, onClose }: { x: number; y
         {t("minecraft.screenshots.copy", "Copy to clipboard")}
       </button>
       <button onClick={download}>
-        <Downlo
+        <DownloadIcon width={16} height={16} />
+        {t("minecraft.screenshots.download", "Download")}
+      </button>
+    </div>
+  );
+}

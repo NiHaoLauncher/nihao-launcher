@@ -285,4 +285,5 @@ export function DragRegion() {
     addEventListener("mousedown", onDown, true);
     return () => removeEventListener("mousedown", onDown, true);
   }, []);
-  return <div ref={ref} style={{position:"absolute",top:"0",left:"0",zIndex:"999", width:"100%", height:"25px", pointerE
+  return <div ref={ref} style={{position:"absolute",top:"0",left:"0",zIndex:"999", width:"100%", height:"25px", pointerEvents:"none"}} />;
+}

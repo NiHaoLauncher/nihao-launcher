@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "nihao_client",
+  "project_id": "6cfc7d01-77b0-47e7-a204-9d57ed867c20"
+}

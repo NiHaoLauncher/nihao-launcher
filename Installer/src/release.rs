@@ -263,8 +263,14 @@ fn unpack(data: Vec<u8>, dir: &Path) -> Result<Option<PathBuf>, String> {
 }
 
 /// Nothing is unpacked unless the maintainer's signature on exactly this download checks out
-/// (`release_sig`), so a tampered or unsigned release is refused like a bad one.
+/// (`release_sig`). Only an archive placed next to the installer (`host == LOCAL`) is checked this
+/// way: a `.sig` next to it is required, and a missing or bad one refuses the file. Archives
+/// downloaded from GitHub or GitLab are trusted as-is and are not signed, so no `.sig` is asked
+/// for them.
 fn check_signature(release: &Release, zip: &[u8]) -> Result<(), String> {
+    if !release.is_local() {
+        return Ok(());
+    }
     if release.signature_url.is_empty() {
         return Err("this release has no .sig file next to its zip, so it cannot be trusted".to_string());
     }
@@ -396,9 +402,12 @@ mod tests {
 
     #[test]
     fn a_release_without_a_signature_is_refused_before_anything_is_unpacked() {
-        let unsigned = release("GitHub", "0.2.0");
+        let unsigned = release(LOCAL, "0.2.0");
         assert!(unsigned.signature_url.is_empty());
         assert!(check_signature(&unsigned, b"zip bytes").unwrap_err().contains("no .sig"));
+        // A cloud release with no .sig is installed as-is.
+        let cloud = release("GitHub", "0.2.0");
+        assert!(check_signature(&cloud, b"zip bytes").is_ok());
     }
 
     #[test]

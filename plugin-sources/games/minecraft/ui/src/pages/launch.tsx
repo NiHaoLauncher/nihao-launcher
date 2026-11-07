@@ -754,4 +754,7 @@ function PlayTargetsBar({ name, versionId, disabled, target, onChange }: {
   return (
     <div className="play-targets">
       {worlds.map((w) => chip("world", w.folder, w.folder, `w:${w.folder}`, w.icon))}
-      {list.servers.map((s, i) => chip("server", s.ip, s.name, `s:${i
+      {list.servers.map((s, i) => chip("server", s.ip, s.name, `s:${i}`, s.icon))}
+    </div>
+  );
+}

@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NiHao Launcher — Cosmos pages</title>
+<style>
+:root{
+  --bg:#070A1C; --surface:#0E1230; --mainbar:#131838; --modal:#0B0F2A;
+  --main:#4A90D9; --main2:#69ACF5;
+  --text:#fff; --muted:#8C95BE; --faint:#5A628A;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.12);
+  --ok:#3FB950;
+  --r-control:6px; --r-card:10px; --r-modal:12px;
+  --z:.55;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#04050f;color:var(--text);font:400 16px/1.4 Inter,Avenir,Helvetica,Arial,sans-serif}
+button{font:inherit;color:inherit}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---- canvas ---- */
+.toolbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:14px;padding:10px 24px;background:rgba(4,5,15,.9);border-bottom:1px solid var(--line);backdrop-filter:blur(8px);font-size:13px;color:var(--muted)}
+.toolbar input{width:180px;accent-color:var(--main)}
+.board{display:flex;flex-wrap:wrap;gap:56px 48px;padding:40px 24px 80px}
+.slot{display:flex;flex-direction:column;gap:10px}
+.slot>h2{margin:0;font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.04em}
+.frame{zoom:var(--z);position:relative;width:1280px;height:720px;overflow:hidden;border-radius:12px;background:var(--bg);box-shadow:0 0 0 1px var(--line)}
+
+/* ---- calm space: one blue nebula + few stars ---- */
+.space{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(900px 600px at 78% -8%,rgba(74,144,217,.17),transparent 70%)}
+.space::before,.space::after{content:"";position:absolute;inset:-200px 0 0 0;
+  background-repeat:repeat;animation:drift 120s linear infinite}
+.space::before{background-image:
+  radial-gradient(1px 1px at 40px 60px,rgba(255,255,255,.5),transparent),
+  radial-gradient(1px 1px at 170px 210px,rgba(255,255,255,.35),transparent),
+  radial-gradient(1.5px 1.5px at 290px 120px,rgba(255,255,255,.55),transparent),
+  radial-gradient(1px 1px at 410px 330px,rgba(255,255,255,.3),transparent),
+  radial-gradient(1px 1px at 520px 40px,rgba(255,255,255,.4),transparent);
+  background-size:600px 400px}
+.space::after{background-image:
+  radial-gradient(1.5px 1.5px at 90px 280px,rgba(255,255,255,.45),transparent),
+  radial-gradient(1px 1px at 330px 30px,rgba(255,255,255,.3),transparent),
+  radial-gradient(1px 1px at 480px 250px,rgba(255,255,255,.4),transparent);
+  background-size:520px 360px;animation-duration:200s}
+@keyframes drift{to{transform:translateY(400px)}}
+
+/* ---- shell (as SimpleShell: bar / page / progress) ---- */
+.shell{position:absolute;inset:0;display:flex;flex-direction:column}
+.bar{height:50px;flex:none;display:flex;align-items:center;padding:0 12px 0 16px}
+.bar>.grow{flex:1}
+.account{display:flex;align-items:center;gap:14px;color:var(--muted)}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--main);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+.quick{display:flex;gap:6px}
+.quick button{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 12px 0;color:var(--muted);transition:color .2s}
+.quick button::after{content:"";width:14px;height:2px;border-radius:1px;background:transparent;transition:background .2s}
+.quick button.on{color:#fff}.quick button.on::after{background:var(--main)}
+.quick button:hover{color:#fff}
+.win{display:flex;gap:4px;color:var(--muted)}
+.win span{width:30px;height:30px;display:grid;place-items:center;border-radius:8px}
+.win svg{width:14px;height:14px}
+.page{flex:1;min-height:0;position:relative}
+.progress{flex:none;height:48px;background:var(--mainbar);border-top:1px solid var(--line);position:relative;display:flex;align-items:center;padding:0 20px;gap:10px;font-size:14px}
+.progress b{font-weight:600}.progress small{margin-left:auto;color:var(--muted);font-size:12px}
+.progress i{position:absolute;left:0;bottom:0;height:3px;width:64%;background:var(--main);animation:sweep 2.4s ease-in-out infinite alternate}
+@keyframes sweep{from{opacity:.65}to{opacity:1}}
+
+/* ---- buttons / fields ---- */
+.btn{border:1px solid transparent;border-radius:var(--r-control);padding:11px 22px;font-size:14px;font-weight:600;cursor:pointer;background:var(--main);color:#fff;transition:background .2s}
+.btn:hover{background:var(--main2)}
+.btn.ghost{background:transparent;border-color:rgba(255,255,255,.28)}
+.btn.ghost:hover{background:rgba(255,255,255,.08)}
+.field{display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--muted);font-weight:500}
+.input{background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-control);padding:11px 14px;font-size:14px;color:var(--faint)}
+
+/* ---- tiles ---- */
+.games{display:flex;gap:24px;position:relative}
+.tile{position:relative;width:160px;opacity:.6;transition:opacity .2s}
+.tile .poster{height:213px;border-radius:var(--r-card);display:grid;place-items:center;font-size:32px;font-weight:700;border:1px solid var(--line);transition:transform .2s}
+.tile .name{margin-top:10px;font-size:14px;font-weight:600}
+.tile.on{opacity:1}.tile.on .poster{outline:2px solid var(--main);outline-offset:-2px;transform:scale(1.02)}
+.tile:hover{opacity:1}
+.chk{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:var(--main);display:none;place-items:center}
+.chk svg{width:13px;height:13px;stroke:#fff}
+.tile.on .chk.show{display:grid}
+.flyout{position:absolute;left:170px;top:0;z-index:2;width:190px;padding:14px;background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-card)}
+.flyout b{display:block;font-size:15px;margin-bottom:6px}
+.flyout div{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)}
+.flyout strong{font-size:16px;color:#fff}
+.g1{background:linear-gradient(135deg,#1F3A2B,#2F5A44)}.g2{background:linear-gradient(135deg,#4A2A22,#7A4A33)}
+.g3{background:linear-gradient(135deg,#4A4222,#7A6B33)}.g4{background:linear-gradient(135deg,#22404A,#337A6B)}
+.g5{background:linear-gradient(135deg,#262A4A,#3D4780)}.g6{background:linear-gradient(135deg,#2E2A4A,#4D4780)}
+.g7{background:linear-gradient(135deg,#1E3A4A,#2F6A7A)}
+
+/* ---- pages ---- */
+.pad{padding:28px 56px}
+.pad h1{margin:0 0 28px;font-size:28px;font-weight:700;text-align:left}
+.center{display:flex;flex-direction:column;align-items:center;gap:32px;padding-top:20px}
+.center h1{margin:0;font-size:32px;text-align:center}
+.center .field{width:360px}
+.pick{display:flex;flex-direction:column;align-items:center;gap:14px;font-size:12px;color:var(--muted);font-weight:500}
+.center .btn{position:absolute;bottom:32px;left:50%;transform:translateX(-50%)}
+
+/* loading */
+.load{position:absolute;inset:0;display:grid;place-items:center}
+.orbit{width:200px;height:200px;position:relative}
+.orbit svg{width:200px;height:200px;overflow:visible}
+.orbit .track{fill:none;stroke:rgba(255,255,255,.14);stroke-width:1.2}
+.orbit .path{fill:none;stroke:rgba(255,255,255,.22);stroke-width:1.2}
+.orbit .arc{fill:none;stroke:var(--main2);stroke-width:3;stroke-linecap:round;stroke-dasharray:160 578;transform:rotate(-90deg);transform-origin:100px 100px;filter:drop-shadow(0 0 6px rgba(105,172,245,.7));animation:spin 1.8s linear infinite}
+.orbit .planet{fill:var(--main);filter:drop-shadow(0 0 14px rgba(74,144,217,.6));transform-origin:100px 100px;animation:breathe 4s ease-in-out infinite}
+.orbit .moon{transform-origin:100px 100px;animation:around 4s linear infinite}
+.orbit .moon circle{fill:#fff;filter:drop-shadow(0 0 5px #fff)}
+@keyframes spin{to{transform:rotate(270deg)}}
+@keyframes breathe{50%{transform:scale(1.07)}}
+@keyframes around{to{transform:rotate(360deg)}}
+/* profile */
+.profile{display:flex;gap:56px;padding:24px 56px 32px;height:100%}
+.side{width:200px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.side .avatar{width:88px;height:88px;font-size:28px;margin-bottom:10px}
+.side h3{margin:0;font-size:20px}.side p{margin:0;font-size:13px;color:var(--muted)}
+.side .btn{margin-top:auto;width:100%}
+.main{flex:1;display:flex;flex-direction:column;gap:28px}
+.tabs{display:flex;gap:24px}
+.tabs span{padding-bottom:8px;font-size:15px;color:var(--muted);border-bottom:2px solid transparent}
+.tabs span.on{color:#fff;font-weight:600;border-color:var(--main)}
+.stats{display:flex;gap:64px}.stats small{display:block;font-size:12px;color:var(--muted)}.stats b{font-size:30px}
+.h{font-size:14px;font-weight:600;color:var(--muted)}
+.row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.row div b{display:block;font-size:14px;font-weight:600}.row div small{font-size:12px;color:var(--muted)}
+.row>small{margin-left:auto;font-size:12px;color:var(--muted)}
+
+/* settings modal (same plain frame as src-shared Modal.css) */
+.overlay{position:absolute;left:0;right:0;top:50px;bottom:0;background:rgba(0,0,0,.5);display:grid;place-items:center}
+.modal{width:860px;height:540px;display:flex;flex-direction:column;background:var(--modal);border:1px solid var(--line);border-radius:var(--r-modal);box-shadow:0 16px 48px rgba(0,0,0,.4);overflow:hidden}
+.mh{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 16px 22px;border-bottom:1px solid var(--line)}
+.mh h3{margin:0;font-size:18px;font-weight:600}
+.mb{flex:1;display:flex;min-height:0}
+.mc{flex:1;padding:22px;display:flex;flex-direction:column;gap:24px}
+.set{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.set b{display:block;font-size:14px;font-weight:600}.set small{font-size:12px;color:var(--muted)}
+.tg{width:40px;height:22px;border-radius:11px;background:var(--main);padding:3px;display:flex;justify-content:flex-end}
+.tg::after{content:"";width:16px;height:16px;border-radius:50%;background:#fff}
+.sel{display:flex;align-items:center;gap:24px;padding:8px 12px 8px 14px;border:1px solid var(--line2);border-radius:var(--r-control);background:rgba(255,255,255,.05);font-size:13px;font-weight:500}
+.sw{display:flex;gap:8px}.sw i{width:22px;height:22px;border-radius:50%}.sw i.on{box-shadow:0 0 0 2px var(--modal),0 0 0 4px #fff}
+.cats{width:220px;border-left:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:4px}
+.cat{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r-control);font-size:14px;color:var(--muted)}
+.cat.on{background:var(--main);color:#fff;font-weight:600}
+.mf{display:flex;justify-content:flex-end;gap:8px;padding:14px 22px;border-top:1px solid var(--line)}
+
+/* minecraft */
+.mcp{padding:20px 56px 28px;height:100%;display:flex;flex-direction:column;gap:24px}
+.packs{display:flex;flex-wrap:wrap;gap:16px;width:944px}
+.pack{width:220px;height:130px;border-radius:var(--r-card);position:relative;overflow:hidden;opacity:.65;transition:opacity .2s}
+.pack::after{content:"";position:absolute;left:0;right:0;bottom:0;height:70px;background:linear-gradient(to top,rgba(0,0,0,.7),transparent)}
+.pack.on{opacity:1;outline:2px solid var(--main);outline-offset:-2px}.pack:hover{opacity:1}
+.pack div{position:absolute;left:14px;bottom:12px;z-index:1}
+.pack b{display:block;font-size:15px}.pack small{font-size:12px;color:var(--muted)}
+.actions{position:absolute;right:30px;top:120px;display:flex;flex-direction:column;gap:18px;color:var(--muted)}
+.actions svg{width:20px;height:20px}.actions svg:hover{color:#fff}
+.launch{margin-top:auto;display:flex;align-items:center;gap:16px}
+.session{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line2);border-radius:var(--r-card);color:var(--muted)}
+.session .avatar{border-radius:8px;width:30px;height:30px;font-size:13px}
+.session b{display:block;color:#fff;font-size:14px;font-weight:600}.session small{font-size:11px}
+.launch .info{margin-left:auto;text-align:right}.launch .info b{display:block;font-size:13px}.launch .info small{font-size:11px;color:var(--muted)}
+.launch .btn{padding:14px 40px}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+html[data-animations="off"] *{animation:none!important;transition:none!important}
+
+/* ---- modpack page variants ---- */
+.banner{position:absolute;inset:0;overflow:hidden;background:
+  radial-gradient(circle at 74% 14%,rgba(255,244,214,.95) 0 2.2%,rgba(255,244,214,0) 3.4%),
+  linear-gradient(180deg,#7fb6e0 0%,#bddcee 52%,#d4e8f0 62%)}
+.banner::before{content:"";position:absolute;left:0;right:0;bottom:0;height:34%;background:linear-gradient(180deg,#4d8a3c,#2c5a27)}
+.banner i{position:absolute;display:block}
+.tree{width:46px;bottom:30%;background:#254a22;box-shadow:0 -60px 0 12px #2f5d2a,0 -120px 0 4px #3a7033;height:150px}
+.build{bottom:26%;background:#8a7d6a;box-shadow:70px 20px 0 #6b5e4c,-60px 30px 0 #4f6b3a,130px -10px 0 #7a6f5c}
+.barrel{background:#4b5560;height:46px;border-radius:2px;transform-origin:left center;transform:rotate(-14deg)}
+.rail{position:absolute;left:0;top:0;bottom:0;width:64px;background:rgba(8,10,24,.88);display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;z-index:3}
+.rail .inst{width:40px;height:40px;border-radius:10px;background:#1c6b2f;display:grid;place-items:center;font-size:9px;font-weight:700;outline:2px solid var(--main);margin-bottom:8px}
+.rail button{all:unset;width:40px;height:40px;display:grid;place-items:center;border-radius:10px;color:var(--muted);cursor:pointer}
+.rail button:hover{color:#fff;background:rgba(255,255,255,.08)}
+.rail button.on{color:#fff;background:rgba(74,144,217,.28)}
+.float{position:absolute;top:12px;right:14px;z-index:4;display:flex;align-items:center;gap:14px;color:rgba(255,255,255,.75);font-size:12px}
+.float .win span{background:rgba(8,10,24,.55);backdrop-filter:blur(8px)}
+.float .spin{width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:rot 1s linear infinite;display:inline-block;margin-right:8px;vertical-align:-1px}
+@keyframes rot{to{transform:rotate(360deg)}}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(8,10,24,.55);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px)}
+.chip.ld{background:var(--main);border-color:transparent}
+.chip svg{width:14px;height:14px}
+.title{display:flex;align-items:center;gap:14px}
+.title .ic{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#d7e9f5,#6a9cc4);flex:none}
+.title h1{margin:0;font-size:40px;line-height:1.1;font-weight:700;text-shadow:0 2px 18px rgba(0,0,0,.45)}
+.meta{display:flex;gap:8px;flex-wrap:wrap}
+.targets{display:flex;gap:8px}
+.targets .t{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--r-control);font-size:13px;font-weight:600;background:rgba(8,10,24,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px)}
+.targets .t.on{border-color:var(--main);background:rgba(74,144,217,.3)}
+.targets .t svg{width:15px;height:15px;color:var(--muted)}
+.targets .t i{width:7px;height:7px;border-radius:50%;background:var(--ok)}.targets .t i.off{background:#ed4245}
+.play{display:flex;align-items:center;justify-content:center;gap:12px;border-radius:12px;background:var(--main);font-size:20px;font-weight:700;color:#fff;border:0;cursor:pointer;transition:background .2s,transform .2s}
+.play:hover{background:var(--main2);transform:translateY(-1px)}
+.play svg{width:22px;height:22px;fill:#fff;stroke:#fff}
+.sess{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:rgba(8,10,24,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);color:var(--muted)}
+.sess .sk{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#7b5b3d,#4b3827);flex:none}
+.sess b{display:block;color:#fff;font-size:14px;font-weight:600}.sess small{font-size:11px}
+.sess>svg{margin-left:auto;width:14px;height:14px}
+.vact{display:flex;flex-direction:column;gap:4px;padding:8px 6px;border-radius:999px;color:#fff;background:rgba(8,10,24,.78);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(16px);box-shadow:0 8px 28px rgba(0,0,0,.55)}
+.vact span{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;transition:background .2s}
+.vact span:hover{background:rgba(74,144,217,.55)}
+.vact svg{width:19px;height:19px}
+/* A: hero */
+.va .scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(0deg,rgba(7,10,28,.94) 0,rgba(7,10,28,.55) 34%,transparent 62%),linear-gradient(90deg,rgba(7,10,28,.7) 0,transparent 55%)}
+.va .head{position:absolute;left:112px;top:64px;z-index:2;display:flex;flex-direction:column;gap:16px}
+.va .bottom{position:absolute;left:112px;right:100px;bottom:40px;z-index:2;display:flex;flex-direction:column;gap:14px}
+.va .row{display:flex;gap:14px;align-items:stretch}
+.va .play{width:300px;height:68px}.va .sess{width:290px}
+.va .stat{margin-left:auto;display:flex;gap:36px;align-items:center;font-size:12px;color:var(--muted)}
+.va .stat b{display:block;color:#fff;font-size:20px}
+.va .vact{position:absolute;right:28px;top:50%;transform:translateY(-50%);z-index:2}
+/* B: dock */
+.vb .scrim{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(7,10,28,.55) 0,transparent 30%,transparent 55%,rgba(7,10,28,.5) 100%)}
+.vb .head{position:absolute;left:112px;top:64px;z-index:2;display:flex;flex-direction:column;gap:14px}
+.vb .dock{position:absolute;left:112px;right:112px;bottom:36px;z-index:2;padding:16px;border-radius:18px;background:rgba(10,13,32,.62);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(22px);display:flex;flex-direction:column;gap:14px}
+.vb .dock .targets .t{background:rgba(255,255,255,.06);backdrop-filter:none}
+.vb .dock .row{display:flex;gap:14px}
+.vb .play{flex:1;height:64px}.vb .sess{width:300px;background:rgba(255,255,255,.06);backdrop-filter:none}
+.vb .vact{position:absolute;right:28px;top:96px;z-index:2;padding:8px 6px;border-radius:999px;background:rgba(10,13,32,.55);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(14px)}
+/* C: split */
+.vc .panel{position:absolute;left:64px;top:0;bottom:0;width:400px;background:var(--surface);border-right:1px solid var(--line);z-index:2;padding:64px 32px 32px;display:flex;flex-direction:column;gap:22px}
+.vc .banner{left:464px}
+.vc .title h1{font-size:32px}
+.vc .meta .chip{background:rgba(255,255,255,.06);backdrop-filter:none}.vc .meta .chip.ld{background:var(--main)}
+.vc .stats2{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.vc .stats2 b{display:block;color:#fff;font-size:20px;margin-top:2px}
+.vc .plist{display:flex;flex-direction:column;gap:2px}
+.vc .plist .h{margin-bottom:6px}
+.vc .plist .t{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r-control);font-size:14px;font-weight:500;cursor:pointer}
+.vc .plist .t:hover{background:rgba(255,255,255,.05)}
+.vc .plist .t.on{background:rgba(74,144,217,.22)}
+.vc .plist .t svg{width:16px;height:16px;color:var(--muted)}.vc .plist .t i{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--ok)}.vc .plist .t i.off{background:#ed4245}
+.vc .play{height:60px}.vc .sess{background:rgba(255,255,255,.05);backdrop-filter:none}
+.vc .vact{position:absolute;right:20px;top:60px;z-index:2;padding:6px;border-radius:12px;background:rgba(8,10,24,.55);backdrop-filter:blur(10px)}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <radialGradient id="pl"><stop offset="0" stop-color="#69ACF5"/><stop offset="1" stop-color="#4A90D9"/></radialGradient>
+    <symbol id="home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/></symbol>
+    <symbol id="sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+    <symbol id="min" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="max" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+    <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19 7"/></symbol>
+    <symbol id="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="terminal" viewBox="0 0 24 24"><path d="m5 8 4 4-4 4M12 17h7"/></symbol>
+    <symbol id="share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/></symbol>
+    <symbol id="cog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></symbol>
+    <symbol id="image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-8 9"/></symbol>
+    <symbol id="shirt" viewBox="0 0 24 24"><path d="M8 3 3 6l2 5 3-1v11h8V10l3 1 2-5-5-3a4 4 0 0 1-8 0z"/></symbol>
+    <symbol id="play" viewBox="0 0 24 24"><path d="m7 4 13 8-13 8z"/></symbol>
+    <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
+  </defs>
+</svg>
+
+<div class="toolbar">
+  <b style="color:#fff">NiHao Launcher · Cosmos</b>
+  <span>Масштаб</span><input id="zoom" type="range" min="25" max="100" value="55">
+  <span id="zv">55%</span>
+  <label style="margin-left:auto"><input id="anim" type="checkbox" checked> анімації</label>
+</div>
+
+<main class="board">
+
+<!-- 1. Loading -->
+<section class="slot"><h2>1 · LOADING</h2>
+<div class="frame"><div class="space"></div>
+  <div class="load"><div class="orbit">
+    <svg viewBox="0 0 200 200">
+      <circle class="track" cx="100" cy="100" r="92"/>
+      <circle class="arc" cx="100" cy="100" r="92"/>
+      <circle class="path" cx="100" cy="100" r="46"/>
+      <circle class="planet" cx="100" cy="100" r="20"/>
+      <g class="moon"><circle cx="146" cy="100" r="4"/></g>
+    </svg>
+  </div></div>
+</div></section>
+
+<!-- 2. Init -->
+<section class="slot"><h2>2 · INIT</h2>
+<div class="frame"><div class="space"></div>
+  <div class="shell">
+    <div class="bar"><div class="grow"></div><div class="win"><span><svg class="i"><use href="#min"/></svg></span><span><svg class="i"><use href="#max"/></svg></span><span><svg class="i"><use href="#x"/></svg></span></div></div>
+    <div class="page center">
+      <h1>Welcome</h1>
+      <div class="field">Nickname<div class="input">Enter your nickname</div></div>
+      <div class="pick">Choose your games
+        <div class="games">
+          <div class="tile on"><div class="poster g1">MC</div><div class="chk show"><svg class="i"><use href="#check"/></svg></div><div class="name">Minecraft</div></div>
+          <div class="tile"><div class="poster g2">TR</div><div class="name">Terraria</div></div>
+          <div class="tile"><div class="poster g3">FA</div><div class="name">Factorio</div></div>
+          <div class="tile on"><div class="poster g4">SV</div><div class="chk show"><svg class="i"><use href="#check"/></svg></div><div class="name">Stardew</div></div>
+          <div class="tile"><div class="poster g5">VH</div><div class="name">Valheim</div></div>
+        </div>
+      </div>
+      <button class="btn">Continue</button>
+    </div>
+  </div>
+</div></section>
+
+<!-- 3. Home -->
+<section class="slot"><h2>3 · HOME</h2>
+<div class="frame"><div class="space"></div>
+  <div class="shell">
+    <div class="bar">
+      <div class="account"><div class="avatar">BC</div><svg class="i"><use href="#users"/></svg></div>
+      <div class="grow"></div>
+      <div class="quick"><button class="on"><svg class="i"><use href="#home"/></svg></button><button><svg class="i"><use href="#grid"/></svg></button><button><svg class="i"><use href="#sliders"/></svg></button></div>
+      <div class="grow"></div>
+      <div class="win"><span><svg class="i"><use href="#min"/></svg></span><span><svg class="i"><use href="#max"/></svg></span><span><svg class="i"><use href="#x"/></svg></span></div>
+    </div>
+    <div class="page pad">
+      <h1>Games</h1>
+      <div class="games">
+        <div class="tile on"><div class="poster g1">MC</div><div class="name">Minecraft</div></div>
+        <div class="tile"><div class="poster g2">TR</div><div class="name">Terraria</div></div>
+        <div class="tile"><div class="poster g3">FA</div><div class="name">Factorio</div></div>
+        <div class="tile"><div class="poster g4">SV</div><div class="name">Stardew</div></div>
+        <div class="tile"><div class="poster g5">VH</div><div class="name">Valheim</div></div>
+        <div class="flyout"><b>Minecraft</b><div>Modpacks <strong>12</strong></div></div>
+      </div>
+    </div>
+    <div class="progress"><b>Better MC [FABRIC] 1.21</b><small>Downloading libraries · 64%</small><i></i></div>
+  </div>
+</div></section>
+
+<!-- 4. Profile -->
+<section class="slot"><h2>4 · PROFILE</h2>
+<div class="frame"><div class="space"></div>
+  <div class="shell">
+    <div class="bar">
+      <div class="account"><div class="avatar">BC</div><svg class="i"><use href="#users"/></svg></div>
+      <div class="grow"></div>
+      <div class="quick"><button><svg class="i"><use href="#home"/></svg></button><button><svg class="i"><use href="#grid"/></svg></button><button><svg class="i"><use href="#sliders"/></svg></button></div>
+      <div class="grow"></div>
+      <div class="win"><span><svg class="i"><use href="#min"/></svg></span><span><svg class="i"><use href="#max"/></svg></span><span><svg class="i"><use href="#x"/></svg></span></div>
+    </div>
+    <div class="page"><div class="profile">
+      <div class="side"><div class="avatar">BC</div><h3>Bohdan</h3><p>@bogdancater</p><button class="btn ghost">Log out</button></div>
+      <div class="main">
+        <div class="tabs"><span class="on">Minecraft</span><span>Terraria</span><span>Factorio</span></div>
+        <div class="stats"><div><small>Playtime</small><b>214 h</b></div><div><small>Modpacks</small><b>12</b></div><div><small>Screenshots</small><b>340</b></div></div>
+        <div class="h">Recent activity</div>
+        <div>
+          <div class="row"><div><b>Better MC [FABRIC] 1.21</b><small>Played 2 h 14 min</small></div><small>Today</small></div>
+          <div class="row"><div><b>Create: Above &amp; Beyond</b><small>Played 48 min</small></div><small>Yesterday</small></div>
+          <div class="row"><div><b>Vanilla 1.21.4</b><small>Installed</small></div><small>3 days ago</small></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div></section>
+
+<!-- 5. Settings modal -->
+<section class="slot"><h2>5 · SETTINGS (MODAL)</h2>
+<div class="frame"><div class="space"></div>
+  <div class="shell">
+    <div class="bar">
+      <div class="account"><div class="avatar">BC</div><svg class="i"><use href="#users"/></svg></div>
+      <div class="grow"></div>
+      <div class="quick"><button><svg class="i"><use href="#home"/></svg></button><button><svg class="i"><use href="#grid"/></svg></button><button class="on"><svg class="i"><use href="#sliders"/></svg></button></div>
+      <div class="grow"></div>
+      <div class="win"><span><svg class="i"><use href="#min"/></svg></span><span><svg class="i"><use href="#max"/></svg></span><span><svg class="i"><use href="#x"/></svg></span></div>
+    </div>
+  </div>
+  <div class="overlay"><div class="modal">
+    <div class="mh"><h3>Settings</h3><svg class="i"><use href="#x"/></svg></div>
+    <div class="mb">
+      <div class="mc">
+        <div class="set"><div><b>Interface animations</b><small>Moving stars and page transitions.</small></div><div class="tg"></div></div>
+        <div class="set"><div><b>Quick panel position</b><small>Where the row of game shortcuts sits.</small></div><div class="sel">Top <svg class="i" style="width:14px;height:14px"><use href="#chev"/></svg></div></div>
+        <div class="set"><div><b>Main colour</b><small>Accent for buttons and highlights.</small></div><div class="sw"><i class="on" style="background:#4A90D9"></i><i style="background:#8B5CF6"></i><i style="background:#22D3EE"></i><i style="background:#3FB950"></i></div></div>
+      </div>
+      <div class="cats">
+        <div class="cat"><svg class="i"><use href="#cog"/></svg>General</div>
+        <div class="cat on"><svg class="i"><use href="#sliders"/></svg>Appearance</div>
+        <div class="cat"><svg class="i"><use href="#grid"/></svg>Games</div>
+        <div class="cat"><svg class="i"><use href="#users"/></svg>Online service</div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn ghost">Cancel</button><button class="btn">Save</button></div>
+  </div></div>
+</div></section>
+
+<!-- 6. Minecraft -->
+<section class="slot"><h2>6 · MINECRAFT — MODPACKS</h2>
+<div class="frame"><div class="space"></div>
+  <div class="shell">
+    <div class="bar">
+      <div class="account"><div class="avatar">BC</div><svg class="i"><use href="#users"/></svg></div>
+      <div class="grow"></div>
+      <div class="quick"><button><svg class="i"><use href="#home"/></svg></button><button class="on"><svg class="i"><use href="#grid"/></svg></button><button><svg class="i"><use href="#sliders"/></svg></button></div>
+      <div class="grow"></div>
+      <div class="win"><span><svg class="i"><use href="#min"/></svg></span><span><svg class="i"><use href="#max"/></svg></span><span><svg class="i"><use href="#x"/></svg></span></div>
+    </div>
+    <div class="page"><div class="mcp">
+      <div class="tabs"><span class="on">All instances</span><span>Public</span><span>Custom</span></div>
+      <div class="packs">
+        <div class="pack on g1"><div><b>Better MC</b><small>Fabric 1.21</small></div></div>
+        <div class="pack g4"><div><b>Create: Above</b><small>NeoForge 1.21</small></div></div>
+        <div class="pack g3"><div><b>Vanilla</b><small>Release 1.21.4</small></div></div>
+        <div class="pack g2"><div><b>RLCraft</b><small>Forge 1.12</small></div></div>
+        <div class="pack g6"><div><b>Cosmic Reach</b><small>Fabric 1.20</small></div></div>
+        <div class="pack g5"><div><b>Sky Factory</b><small>Forge 1.19</small></div></div>
+        <div class="pack g7"><div><b>Prominence</b><small>Fabric 1.20</small></div></div>
+      </div>
+      <div class="launch">
+        <div class="session"><div class="avatar">S</div><div><b>Steve</b><small>Offline</small></div><svg class="i" style="width:14px;height:14px"><use href="#chev"/></svg></div>
+        <div class="info"><b>Better MC [FABRIC] 1.21</b><small>Java 21 · 6 GB</small></div>
+        <button class="btn">Launch</button>
+      </div>
+    </div></div>
+    <div class="actions"><svg class="i"><use href="#folder"/></svg><svg class="i"><use href="#terminal"/></svg><svg class="i"><use href="#share"/></svg><svg class="i"><use href="#cog"/></svg></div>
+  </div>
+</div></section>
+
+<section class="slot"><h2>7A · MODPACK PAGE — HERO (text on scrim, one big Launch)</h2><div class="frame va"><div class="banner"><i class="tree" style="left:62%"></i><i class="tree" style="left:84%;transform:scale(.8)"></i><i class="tree" style="left:48%;transform:scale(.7)"></i><i class="build" style="left:22%;width:230px;height:150px"></i><i class="barrel" style="left:36%;bottom:52%;width:420px"></i></div><div class="scrim"></div><div class="rail"><div class="inst">DEV</div><button class="on"><svg class="i"><use href="#grid"/></svg></button><button><svg class="i"><use href="#image"/></svg></button><button><svg class="i"><use href="#shirt"/></svg></button></div><div class="float"><span><span class="spin"></span>Connecting to the server…</span><div class="win"><span><svg class="i"><use href="#cog"/></svg></span><span><svg class="i"><use href="#min"/></svg></span><span><svg class="i"><use href="#max"/></svg></span><span><svg class="i"><use href="#x"/></svg></span></div></div><div class="head"><div class="title"><div class="ic"></div><h1>CreateAERO</h1></div><div class="meta"><span class="chip ld">NeoForge</span><span class="chip">1.21.1</span><span class="chip">148 mods</span><span class="chip">Played 2 h ago</span></div></div><div class="vact"><span><svg class="i"><use href="#terminal"/></svg></span><span><svg class="i"><use href="#folder"/></svg></span><span><svg class="i"><use href="#share"/></svg></span><span><svg class="i"><use href="#cog"/></svg></span></div><div class="bottom"><div class="targets"><div class="t on"><svg class="i"><use href="#globe"/></svg>New World</div><div class="t"><svg class="i"><use href="#server"/></svg>Hype<i></i></div><div class="t"><svg class="i"><use href="#server"/></svg>Minecraft Server<i class="off"></i></div></div><div class="row"><button class="play"><svg class="i"><use href="#play"/></svg>Launch</button><div class="sess"><div class="sk"></div><div><b>BogdanCater</b><small>Offline account</small></div><svg class="i"><use href="#chev"/></svg></div><div class="stat"><div><b>82 h</b>Playtime</div><div><b>148</b>Mods</div></div></div></div></div></section>
+<section class="slot"><h2>7B · MODPACK PAGE — GLASS DOCK (everything actionable in one dock)</h2><div class="frame vb"><div class="banner"><i class="tree" style="left:62%"></i><i class="tree" style="left:84%;transform:scale(.8)"></i><i class="tree" style="left:48%;transform:scale(.7)"></i><i class="build" style="left:22%;width:230px;height:150px"></i><i class="barrel" style="left:36%;bottom:52%;width:420px"></i></div><div class="scrim"></div><div class="rail"><div class="inst">DEV</div><button class="on"><svg class="i"><use href="#grid"/></svg></button><button><svg class="i"><use href="#image"/></svg></button><button><svg class="i"><use href="#shirt"/></svg></button></div><div class="float"><span><span class="spin"></span>Connecting to the server…</span><div class="win"><span><svg class="i"><use href="#cog"/></svg></span><span><svg class="i"><use href="#min"/></svg></span><span><svg class="i"><use href="#max"/></svg></span><span><svg class="i"><use href="#x"/></svg></span></div></div><div class="head"><div class="title"><div class="ic"></div><h1>CreateAERO</h1></div><div class="meta"><span class="chip ld">NeoForge</span><span class="chip">1.21.1</span><span class="chip">148 mods</span><span class="chip">Played 2 h ago</span></div></div><div class="vact"><span><svg class="i"><use href="#terminal"/></svg></span><span><svg class="i"><use href="#folder"/></svg></span><span><svg class="i"><use href="#share"/></svg></span><span><svg class="i"><use href="#cog"/></svg></span></div><div class="dock"><div class="targets"><div class="t on"><svg class="i"><use href="#globe"/></svg>New World</div><div class="t"><svg class="i"><use href="#server"/></svg>Hype<i></i></div><div class="t"><svg class="i"><use href="#server"/></svg>Minecraft Server<i class="off"></i></div></div><div class="row"><button class="play"><svg class="i"><use href="#play"/></svg>Launch</button><div class="sess"><div class="sk"></div><div><b>BogdanCater</b><small>Offline account</small></div><svg class="i"><use href="#chev"/></svg></div></div></div></div></section>
+<section class="slot"><h2>7C · MODPACK PAGE — SPLIT (info panel + clean artwork)</h2><div class="frame vc"><div class="banner"><i class="tree" style="left:62%"></i><i class="tree" style="left:84%;transform:scale(.8)"></i><i class="tree" style="left:48%;transform:scale(.7)"></i><i class="build" style="left:22%;width:230px;height:150px"></i><i class="barrel" style="left:36%;bottom:52%;width:420px"></i></div><div class="rail"><div class="inst">DEV</div><button class="on"><svg class="i"><use href="#grid"/></svg></button><button><svg class="i"><use href="#image"/></svg></button><button><svg class="i"><use href="#shirt"/></svg></button></div><div class="panel"><div class="title"><div class="ic"></div><h1>CreateAERO</h1></div><div class="meta"><span class="chip ld">NeoForge</span><span class="chip">1.21.1</span><span class="chip">148 mods</span><span class="chip">Played 2 h ago</span></div><div class="stats2"><div>Playtime<b>82 h</b></div><div>Mods<b>148</b></div><div>Last played<b>2 h ago</b></div></div><div class="plist"><div class="h">Quick play</div><div class="t on"><svg class="i"><use href="#globe"/></svg>New World</div><div class="t"><svg class="i"><use href="#server"/></svg>Hype<i></i></div><div class="t"><svg class="i"><use href="#server"/></svg>Minecraft Server<i class="off"></i></div></div><div style="margin-top:auto;display:flex;flex-direction:column;gap:12px"><button class="play"><svg class="i"><use href="#play"/></svg>Launch</button><div class="sess"><div class="sk"></div><div><b>BogdanCater</b><small>Offline account</small></div><svg class="i"><use href="#chev"/></svg></div></div></div><div class="float"><span><span class="spin"></span>Connecting to the server…</span><div class="win"><span><svg class="i"><use href="#cog"/></svg></span><span><svg class="i"><use href="#min"/></svg></span><span><svg class="i"><use href="#max"/></svg></span><span><svg class="i"><use href="#x"/></svg></span></div></div><div class="vact"><span><svg class="i"><use href="#terminal"/></svg></span><span><svg class="i"><use href="#folder"/></svg></span><span><svg class="i"><use href="#share"/></svg></span><span><svg class="i"><use href="#cog"/></svg></span></div></div></section>
+</main>
+
+<script>
+const root=document.documentElement,z=document.getElementById('zoom'),zv=document.getElementById('zv');
+z.oninput=()=>{root.style.setProperty('--z',z.value/100);zv.textContent=z.value+'%'};
+document.getElementById('anim').onchange=e=>{e.target.checked?root.removeAttribute('data-animations'):root.setAttribute('data-animations','off')};
+</script>
+</body>
+</html>
